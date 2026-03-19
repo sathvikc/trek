@@ -91,13 +91,61 @@ Your data is persisted in the mounted `data` and `uploads` volumes.
 
 For production, put NOMAD behind a reverse proxy with HTTPS (e.g. Nginx, Caddy, Traefik).
 
-Example with **Caddy**:
+> **Important:** NOMAD uses WebSockets for real-time sync. Your reverse proxy must support WebSocket upgrades on the `/ws` path.
+
+<details>
+<summary>Nginx</summary>
+
+```nginx
+server {
+    listen 80;
+    server_name nomad.yourdomain.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name nomad.yourdomain.com;
+
+    ssl_certificate /path/to/fullchain.pem;
+    ssl_certificate_key /path/to/privkey.pem;
+
+    location /ws {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400;
+    }
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+</details>
+
+<details>
+<summary>Caddy</summary>
+
+Caddy handles WebSocket upgrades automatically:
 
 ```
 nomad.yourdomain.com {
     reverse_proxy localhost:3000
 }
 ```
+
+</details>
 
 ## Optional API Keys
 
