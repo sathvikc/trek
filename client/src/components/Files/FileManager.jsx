@@ -68,10 +68,10 @@ function SourceBadge({ icon: Icon, label }) {
       fontSize: 10.5, color: '#4b5563',
       background: 'var(--bg-tertiary)', border: '1px solid var(--border-primary)',
       borderRadius: 6, padding: '2px 7px',
-      fontWeight: 500, whiteSpace: 'nowrap',
+      fontWeight: 500, maxWidth: '100%', overflow: 'hidden',
     }}>
       <Icon size={10} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
-      {label}
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
     </span>
   )
 }
