@@ -38,6 +38,7 @@ function getAllowedExtensions(): string {
 const upload = multer({
   storage,
   limits: { fileSize: MAX_FILE_SIZE },
+  defParamCharset: 'utf8',
   fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (BLOCKED_EXTENSIONS.includes(ext) || file.mimetype.includes('svg')) {
