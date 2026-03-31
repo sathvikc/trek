@@ -125,11 +125,14 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - TZ=UTC
+      - LOG_LEVEL=info
+      # - ALLOWED_ORIGINS=https://trek.example.com
       # - OIDC_ISSUER=https://auth.example.com
       # - OIDC_CLIENT_ID=trek
       # - OIDC_CLIENT_SECRET=supersecret
-      # - OIDC_DISPLAY_NAME="SSO"
-      # - OIDC_ONLY=true          # disable password auth entirely
+      # - OIDC_DISPLAY_NAME=SSO
+      # - OIDC_ONLY=false
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
@@ -226,17 +229,32 @@ trek.yourdomain.com {
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| **Core** | | |
 | `PORT` | Server port | `3000` |
-| `NODE_ENV` | Environment | `production` |
-| `JWT_SECRET` | JWT signing secret | Auto-generated |
-| `FORCE_HTTPS` | Redirect HTTP to HTTPS | `false` |
-| `OIDC_ISSUER` | OIDC provider URL | — |
+| `NODE_ENV` | Environment (`production` / `development`) | `production` |
+| `JWT_SECRET` | JWT signing secret; auto-generated and saved to `data/` if not set | Auto-generated |
+| `TZ` | Timezone for logs, reminders and cron jobs (e.g. `Europe/Berlin`) | `UTC` |
+| `LOG_LEVEL` | `info` = concise user actions, `debug` = verbose details | `info` |
+| `ALLOWED_ORIGINS` | Comma-separated origins for CORS and email links | same-origin |
+| `FORCE_HTTPS` | Redirect HTTP to HTTPS behind a TLS-terminating proxy | `false` |
+| `TRUST_PROXY` | Number of trusted reverse proxies for `X-Forwarded-For` | `1` |
+| **OIDC / SSO** | | |
+| `OIDC_ISSUER` | OpenID Connect provider URL | — |
 | `OIDC_CLIENT_ID` | OIDC client ID | — |
 | `OIDC_CLIENT_SECRET` | OIDC client secret | — |
-| `OIDC_DISPLAY_NAME` | SSO button label | `SSO` |
-| `OIDC_ONLY` | Disable password auth | `false` |
-| `TRUST_PROXY` | Trust proxy headers | `1` |
-| `DEMO_MODE` | Enable demo mode | `false` |
+| `OIDC_DISPLAY_NAME` | Label shown on the SSO login button | `SSO` |
+| `OIDC_ONLY` | Disable local password auth entirely (first SSO login becomes admin) | `false` |
+| **SMTP** | *Also configurable from Admin > Settings > Notifications* | |
+| `SMTP_HOST` | SMTP server hostname | — |
+| `SMTP_PORT` | SMTP port (`587` for STARTTLS, `465` for SSL) | — |
+| `SMTP_USER` | SMTP username | — |
+| `SMTP_PASS` | SMTP password | — |
+| `SMTP_FROM` | Sender address for notification emails | — |
+| `SMTP_SKIP_TLS_VERIFY` | Skip TLS certificate verification (self-signed certs) | `false` |
+| **Webhook** | *Also configurable from Admin > Settings > Notifications* | |
+| `NOTIFICATION_WEBHOOK_URL` | Discord or Slack webhook URL for notifications | — |
+| **Other** | | |
+| `DEMO_MODE` | Enable demo mode (hourly data resets) | `false` |
 
 ## Optional API Keys
 
@@ -261,6 +279,7 @@ docker build -t trek .
 
 - **Database**: SQLite, stored in `./data/travel.db`
 - **Uploads**: Stored in `./uploads/`
+- **Logs**: `./data/logs/trek.log` (auto-rotated)
 - **Backups**: Create and restore via Admin Panel
 - **Auto-Backups**: Configurable schedule and retention in Admin Panel
 

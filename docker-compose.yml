@@ -17,14 +17,46 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - JWT_SECRET=${JWT_SECRET:-}
-      # ALLOWED_ORIGINS: restrict CORS + used as the app URL in email notification links
-      # If not set, same-origin CORS is used and email links default to http://localhost:PORT
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - PORT=3000
+      # Auto-generated if not set; persist across restarts for stable sessions
+      - JWT_SECRET=${JWT_SECRET:-}
+      # Timezone for logs, reminders and scheduled tasks (e.g. Europe/Berlin)
       - TZ=${TZ:-UTC}
-      # LOG_LEVEL: info (default) or debug (verbose details in docker logs)
+      # info = concise user actions; debug = verbose admin-level details
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      # Comma-separated origins for CORS and email notification links
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
+      # Redirect HTTP to HTTPS when behind a TLS-terminating proxy
+      # - FORCE_HTTPS=true
+      # Number of trusted proxies (for X-Forwarded-For / real client IP)
+      # - TRUST_PROXY=1
+
+      ## ── OIDC / SSO ──────────────────────────────────────────────
+      # OpenID Connect provider URL
+      # - OIDC_ISSUER=https://auth.example.com
+      # - OIDC_CLIENT_ID=trek
+      # - OIDC_CLIENT_SECRET=supersecret
+      # Label shown on the SSO login button
+      # - OIDC_DISPLAY_NAME=SSO
+      # Set true to disable local password auth entirely (SSO only)
+      # - OIDC_ONLY=false
+
+      ## ── SMTP (email notifications) ──────────────────────────────
+      ## Can also be configured from Admin > Settings > Notifications
+      # - SMTP_HOST=smtp.example.com
+      # - SMTP_PORT=587
+      # - SMTP_USER=trek@example.com
+      # - SMTP_PASS=secret
+      # - SMTP_FROM=trek@example.com
+      # Skip TLS certificate verification (self-signed certs)
+      # - SMTP_SKIP_TLS_VERIFY=false
+
+      ## ── Webhook (Discord / Slack notifications) ─────────────────
+      ## Can also be configured from Admin > Settings > Notifications
+      # - NOTIFICATION_WEBHOOK_URL=https://discord.com/api/webhooks/...
+
+      ## ── Demo mode (resets data hourly) ──────────────────────────
+      # - DEMO_MODE=false
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
