@@ -236,12 +236,12 @@ export function togglePhotoSharing(tripId: string, userId: number, assetId: stri
  * the same trip that contains the photo.
  */
 export function canAccessUserPhoto(requestingUserId: number, ownerUserId: number, assetId: string): boolean {
-  const row = db.prepare(`
+  const rows = db.prepare(`
     SELECT tp.trip_id FROM trip_photos tp
     WHERE tp.immich_asset_id = ? AND tp.user_id = ? AND tp.shared = 1
-  `).get(assetId, ownerUserId) as { trip_id: number } | undefined;
-  if (!row) return false;
-  return !!canAccessTrip(String(row.trip_id), requestingUserId);
+  `).all(assetId, ownerUserId) as { trip_id: number }[];
+  if (rows.length === 0) return false;
+  return rows.some(row => !!canAccessTrip(String(row.trip_id), requestingUserId));
 }
 
 export async function getAssetInfo(
