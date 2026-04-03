@@ -81,7 +81,6 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
   const [albumsLoading, setAlbumsLoading] = useState(false)
   const [albumLinks, setAlbumLinks] = useState<{ id: number; provider: string; album_id: string; album_name: string; user_id: number; username: string; sync_enabled: number; last_synced_at: string | null }[]>([])
   const [syncing, setSyncing] = useState<number | null>(null)
-  const pickerIntegrationBase = selectedProvider ? `/integrations/${selectedProvider}` : ''
 
   const loadAlbumLinks = async () => {
     try {
@@ -110,8 +109,17 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
   }
 
   const linkAlbum = async (albumId: string, albumName: string) => {
+    if (!selectedProvider) {
+      toast.error(t('memories.error.linkAlbum'))
+      return
+    }
+
     try {
-      await apiClient.post(`${pickerIntegrationBase}/trips/${tripId}/album-links`, { album_id: albumId, album_name: albumName })
+      await apiClient.post(`/integrations/memories/trips/${tripId}/album-links`, {
+        album_id: albumId,
+        album_name: albumName,
+        provider: selectedProvider,
+      })
       setShowAlbumPicker(false)
       await loadAlbumLinks()
       // Auto-sync after linking

@@ -438,23 +438,6 @@ export async function listSynologyAlbums(userId: number): Promise<{ albums: Arra
     return { albums };
 }
 
-export function linkSynologyAlbum(userId: number, tripId: string, albumId: string | number | undefined, albumName?: string): void {
-    if (!canAccessTrip(tripId, userId)) {
-        throw new SynologyServiceError(404, 'Trip not found');
-    }
-
-    if (!albumId) {
-        throw new SynologyServiceError(400, 'album_id required');
-    }
-
-    const changes = db.prepare(
-        'INSERT OR IGNORE INTO trip_album_links (trip_id, user_id, provider, album_id, album_name) VALUES (?, ?, ?, ?, ?)'
-    ).run(tripId, userId, SYNOLOGY_PROVIDER, String(albumId), albumName || '').changes;
-
-    if (changes === 0) {
-        throw new SynologyServiceError(400, 'Album already linked');
-    }
-}
 
 export async function syncSynologyAlbumLink(userId: number, tripId: string, linkId: string): Promise<{ added: number; total: number }> {
     const link = db.prepare(`SELECT * FROM trip_album_links WHERE id = ? AND trip_id = ? AND user_id = ? AND provider = ?`)

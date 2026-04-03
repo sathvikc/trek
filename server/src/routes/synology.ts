@@ -86,25 +86,6 @@ router.get('/albums', authenticate, async (req: Request, res: Response) => {
     }
 });
 
-router.post('/trips/:tripId/album-links', authenticate, (req: Request, res: Response) => {
-    const authReq = req as AuthRequest;
-    const { tripId } = req.params;
-    const body = req.body as Record<string, unknown>;
-    const albumId = parseStringBodyField(body.album_id);
-    const albumName = parseStringBodyField(body.album_name);
-
-    if (!albumId) {
-        return handleSynologyError(res, new SynologyServiceError(400, 'Album ID is required'), 'Missing required fields');
-    }
-
-    try {
-        linkSynologyAlbum(authReq.user.id, tripId, albumId, albumName || undefined);
-        res.json({ success: true });
-    } catch (err: unknown) {
-        handleSynologyError(res, err, 'Failed to link album');
-    }
-});
-
 router.post('/trips/:tripId/album-links/:linkId/sync', authenticate, async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
     const { tripId, linkId } = req.params;

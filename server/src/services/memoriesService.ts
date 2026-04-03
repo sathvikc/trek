@@ -76,6 +76,37 @@ export function listTripAlbumLinks(tripId: string, userId: number): { links: any
   return { links };
 }
 
+export function createTripAlbumLink(
+  tripId: string,
+  userId: number,
+  providerRaw: unknown,
+  albumIdRaw: unknown,
+  albumNameRaw: unknown,
+): { success: true } | ServiceError {
+  const denied = accessDeniedIfMissing(tripId, userId);
+  if (denied) return denied;
+
+  const provider = String(providerRaw || '').toLowerCase();
+  const albumId = String(albumIdRaw || '').trim();
+  const albumName = String(albumNameRaw || '').trim();
+
+  if (!provider) {
+    return { error: 'provider is required', status: 400 };
+  }
+  if (!albumId) {
+    return { error: 'album_id required', status: 400 };
+  }
+
+  try {
+    db.prepare(
+      'INSERT OR IGNORE INTO trip_album_links (trip_id, user_id, provider, album_id, album_name) VALUES (?, ?, ?, ?, ?)'
+    ).run(tripId, userId, provider, albumId, albumName);
+    return { success: true };
+  } catch {
+    return { error: 'Album already linked', status: 400 };
+  }
+}
+
 export function removeAlbumLink(tripId: string, linkId: string, userId: number): { success: true } | ServiceError {
   const denied = accessDeniedIfMissing(tripId, userId);
   if (denied) return denied;

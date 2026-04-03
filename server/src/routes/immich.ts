@@ -16,7 +16,6 @@ import {
   proxyOriginal,
   isValidAssetId,
   listAlbums,
-  createAlbumLink,
   syncAlbumAssets,
   getAssetInfo,
 } from '../services/immichService';
@@ -123,17 +122,6 @@ router.get('/albums', authenticate, async (req: Request, res: Response) => {
   const result = await listAlbums(authReq.user.id);
   if (result.error) return res.status(result.status!).json({ error: result.error });
   res.json({ albums: result.albums });
-});
-
-router.post('/trips/:tripId/album-links', authenticate, async (req: Request, res: Response) => {
-  const authReq = req as AuthRequest;
-  const { tripId } = req.params;
-  if (!canAccessTrip(tripId, authReq.user.id)) return res.status(404).json({ error: 'Trip not found' });
-  const { album_id, album_name } = req.body;
-  if (!album_id) return res.status(400).json({ error: 'album_id required' });
-  const result = createAlbumLink(tripId, authReq.user.id, album_id, album_name);
-  if (!result.success) return res.status(400).json({ error: result.error });
-  res.json({ success: true });
 });
 
 router.post('/trips/:tripId/album-links/:linkId/sync', authenticate, async (req: Request, res: Response) => {

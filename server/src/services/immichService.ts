@@ -285,22 +285,6 @@ export async function listAlbums(
 }
 
 
-export function createAlbumLink(
-  tripId: string,
-  userId: number,
-  albumId: string,
-  albumName: string
-): { success: boolean; error?: string } {
-  try {
-    db.prepare(
-      'INSERT OR IGNORE INTO trip_album_links (trip_id, user_id, provider, album_id, album_name) VALUES (?, ?, ?, ?, ?)'
-    ).run(tripId, userId, 'immich', albumId, albumName || '');
-    return { success: true };
-  } catch {
-    return { success: false, error: 'Album already linked' };
-  }
-}
-
 export async function syncAlbumAssets(
   tripId: string,
   linkId: string,

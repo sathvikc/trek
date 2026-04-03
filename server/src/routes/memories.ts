@@ -5,6 +5,7 @@ import { AuthRequest } from '../types';
 import {
     listTripPhotos,
     listTripAlbumLinks,
+    createTripAlbumLink,
     removeAlbumLink,
     addTripPhotos,
     removeTripPhoto,
@@ -88,6 +89,14 @@ router.put('/trips/:tripId/photos/sharing', authenticate, (req: Request, res: Re
     if ('error' in result) return res.status(result.status).json({ error: result.error });
     res.json({ success: true });
     broadcast(tripId, 'memories:updated', { userId: authReq.user.id }, req.headers['x-socket-id'] as string);
+});
+
+router.post('/trips/:tripId/album-links', authenticate, (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
+    const { tripId } = req.params;
+    const result = createTripAlbumLink(tripId, authReq.user.id, req.body?.provider, req.body?.album_id, req.body?.album_name);
+    if ('error' in result) return res.status(result.status).json({ error: result.error });
+    res.json({ success: true });
 });
 
 export default router;
