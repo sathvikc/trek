@@ -11,8 +11,8 @@ describe('cookieOptions', () => {
     expect(cookieOptions()).toHaveProperty('httpOnly', true);
   });
 
-  it('always sets sameSite: strict', () => {
-    expect(cookieOptions()).toHaveProperty('sameSite', 'strict');
+  it('always sets sameSite: lax', () => {
+    expect(cookieOptions()).toHaveProperty('sameSite', 'lax');
   });
 
   it('always sets path: /', () => {
