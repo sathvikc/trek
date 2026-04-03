@@ -74,20 +74,28 @@ router.delete('/trips/:tripId/album-links/:linkId', authenticate, (req: Request,
 router.post('/trips/:tripId/photos', authenticate, (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
     const { tripId } = req.params;
-    const provider = String(req.body?.provider || '').toLowerCase();
     const { shared = true } = req.body;
+    const selectionsRaw = Array.isArray(req.body?.selections) ? req.body.selections : null;
+    const provider = String(req.body?.provider || '').toLowerCase();
     const assetIdsRaw = req.body?.asset_ids;
 
     if (!canAccessTrip(tripId, authReq.user.id)) {
         return res.status(404).json({ error: 'Trip not found' });
     }
 
-    if (!provider) {
-        return res.status(400).json({ error: 'provider is required' });
-    }
+    const selections = selectionsRaw && selectionsRaw.length > 0
+        ? selectionsRaw
+            .map((selection: any) => ({
+                provider: String(selection?.provider || '').toLowerCase(),
+                asset_ids: Array.isArray(selection?.asset_ids) ? selection.asset_ids : [],
+            }))
+            .filter((selection: { provider: string; asset_ids: unknown[] }) => selection.provider && selection.asset_ids.length > 0)
+        : (provider && Array.isArray(assetIdsRaw) && assetIdsRaw.length > 0
+            ? [{ provider, asset_ids: assetIdsRaw }]
+            : []);
 
-    if (!Array.isArray(assetIdsRaw) || assetIdsRaw.length === 0) {
-        return res.status(400).json({ error: 'asset_ids required' });
+    if (selections.length === 0) {
+        return res.status(400).json({ error: 'selections required' });
     }
 
     const insert = db.prepare(
@@ -95,11 +103,13 @@ router.post('/trips/:tripId/photos', authenticate, (req: Request, res: Response)
     );
 
     let added = 0;
-    for (const raw of assetIdsRaw) {
-        const assetId = String(raw || '').trim();
-        if (!assetId) continue;
-        const result = insert.run(tripId, authReq.user.id, assetId, provider, shared ? 1 : 0);
-        if (result.changes > 0) added++;
+    for (const selection of selections) {
+        for (const raw of selection.asset_ids) {
+            const assetId = String(raw || '').trim();
+            if (!assetId) continue;
+            const result = insert.run(tripId, authReq.user.id, assetId, selection.provider, shared ? 1 : 0);
+            if (result.changes > 0) added++;
+        }
     }
 
     res.json({ success: true, added });

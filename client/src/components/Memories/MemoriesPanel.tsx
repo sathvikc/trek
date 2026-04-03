@@ -33,11 +33,12 @@ interface TripPhoto {
   city?: string | null
 }
 
-interface ImmichAsset {
+interface Asset {
   id: string
   takenAt: string
   city: string | null
   country: string | null
+  provider: string
 }
 
 interface MemoriesPanelProps {
@@ -63,7 +64,7 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
 
   // Photo picker
   const [showPicker, setShowPicker] = useState(false)
-  const [pickerPhotos, setPickerPhotos] = useState<ImmichAsset[]>([])
+  const [pickerPhotos, setPickerPhotos] = useState<Asset[]>([])
   const [pickerLoading, setPickerLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
@@ -238,11 +239,16 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
   const loadPickerPhotos = async (useDate: boolean) => {
     setPickerLoading(true)
     try {
-      const res = await apiClient.post(`${pickerIntegrationBase}/search`, {
+      const provider = availableProviders.find(p => p.id === selectedProvider)
+      if (!provider) {
+        setPickerPhotos([])
+        return
+      }
+      const res = await apiClient.post(`/integrations/${provider.id}/search`, {
         from: useDate && startDate ? startDate : undefined,
         to: useDate && endDate ? endDate : undefined,
       })
-      setPickerPhotos(res.data.assets || [])
+      setPickerPhotos((res.data.assets || []).map((asset: Asset) => ({ ...asset, provider: provider.id })))
     } catch {
       setPickerPhotos([])
       toast.error(t('memories.error.loadPhotos'))
@@ -268,9 +274,17 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
   const executeAddPhotos = async () => {
     setShowConfirmShare(false)
     try {
+      const groupedByProvider = new Map<string, string[]>()
+      for (const key of selectedIds) {
+        const [provider, assetId] = key.split('::')
+        if (!provider || !assetId) continue
+        const list = groupedByProvider.get(provider) || []
+        list.push(assetId)
+        groupedByProvider.set(provider, list)
+      }
+
       await apiClient.post(`/integrations/memories/trips/${tripId}/photos`, {
-        provider: selectedProvider,
-        asset_ids: [...selectedIds],
+        selections: [...groupedByProvider.entries()].map(([provider, asset_ids]) => ({ provider, asset_ids })),
         shared: true,
       })
       setShowPicker(false)
@@ -311,6 +325,8 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
 
   const thumbnailBaseUrl = (photo: TripPhoto) =>
     `/api/integrations/${photo.provider}/assets/${photo.asset_id}/thumbnail?userId=${photo.user_id}`
+
+  const makePickerKey = (provider: string, assetId: string): string => `${provider}::${assetId}`
 
   const ownPhotos = tripPhotos.filter(p => p.user_id === currentUser?.id)
   const othersPhotos = tripPhotos.filter(p => p.user_id !== currentUser?.id && p.shared)
@@ -461,8 +477,8 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
   if (showPicker) {
     const alreadyAdded = new Set(
       tripPhotos
-        .filter(p => p.user_id === currentUser?.id && p.provider === selectedProvider)
-        .map(p => p.asset_id)
+        .filter(p => p.user_id === currentUser?.id)
+        .map(p => makePickerKey(p.provider, p.asset_id))
     )
 
     return (
@@ -537,7 +553,7 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
             </div>
           ) : (() => {
             // Group photos by month
-            const byMonth: Record<string, ImmichAsset[]> = {}
+            const byMonth: Record<string, Asset[]> = {}
             for (const asset of pickerPhotos) {
               const d = asset.takenAt ? new Date(asset.takenAt) : null
               const key = d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` : 'unknown'
@@ -555,11 +571,12 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 4 }}>
                   {byMonth[month].map(asset => {
-                    const isSelected = selectedIds.has(asset.id)
-                    const isAlready = alreadyAdded.has(asset.id)
+                    const pickerKey = makePickerKey(asset.provider, asset.id)
+                    const isSelected = selectedIds.has(pickerKey)
+                    const isAlready = alreadyAdded.has(pickerKey)
                     return (
-                      <div key={asset.id}
-                        onClick={() => !isAlready && togglePickerSelect(asset.id)}
+                      <div key={pickerKey}
+                        onClick={() => !isAlready && togglePickerSelect(pickerKey)}
                         style={{
                           position: 'relative', aspectRatio: '1', borderRadius: 8, overflow: 'hidden',
                           cursor: isAlready ? 'default' : 'pointer',
@@ -567,7 +584,7 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
                           outline: isSelected ? '3px solid var(--text-primary)' : 'none',
                           outlineOffset: -3,
                         }}>
-                        <ProviderImg baseUrl={`/api/integrations/${selectedProvider}/assets/${asset.id}/thumbnail?userId=${currentUser!.id}`} provider={selectedProvider} loading="lazy"
+                        <ProviderImg baseUrl={`/api/integrations/${asset.provider}/assets/${asset.id}/thumbnail?userId=${currentUser!.id}`} provider={asset.provider} loading="lazy"
                           style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         {isSelected && (
                           <div style={{
