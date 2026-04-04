@@ -902,10 +902,11 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
               </button>
             )}
 
-            <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 16, alignItems: 'flex-start', justifyContent: 'center', padding: 20, width: '100%', height: '100%' }}>
+            <div onClick={e => { if (e.target === e.currentTarget) closeLightbox() }} style={{ display: 'flex', gap: 16, alignItems: 'flex-start', justifyContent: 'center', padding: 20, width: '100%', height: '100%' }}>
               <img
                 src={lightboxOriginalSrc}
                 alt=""
+                onClick={e => e.stopPropagation()}
                 style={{ maxWidth: (!isMobile && lightboxInfo) ? 'calc(100% - 280px)' : '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 10, cursor: 'default' }}
               />
 

@@ -598,6 +598,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
               leftWidth={leftCollapsed ? 0 : leftWidth}
               rightWidth={rightCollapsed ? 0 : rightWidth}
               hasInspector={!!selectedPlace}
+              hasDayDetail={!!showDayDetail && !selectedPlace}
             />
 
 
