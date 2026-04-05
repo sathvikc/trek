@@ -37,6 +37,9 @@ vi.mock('../../../src/config', () => ({
 const { broadcastMock } = vi.hoisted(() => ({ broadcastMock: vi.fn() }));
 vi.mock('../../../src/websocket', () => ({ broadcast: broadcastMock }));
 
+const { searchPlacesMock } = vi.hoisted(() => ({ searchPlacesMock: vi.fn() }));
+vi.mock('../../../src/services/mapsService', () => ({ searchPlaces: searchPlacesMock }));
+
 import { createTables } from '../../../src/db/schema';
 import { runMigrations } from '../../../src/db/migrations';
 import { resetTestDb } from '../../helpers/test-db';
@@ -51,6 +54,7 @@ beforeAll(() => {
 beforeEach(() => {
   resetTestDb(testDb);
   broadcastMock.mockClear();
+  searchPlacesMock.mockClear();
   delete process.env.DEMO_MODE;
 });
 
@@ -267,44 +271,53 @@ describe('Tool: list_categories', () => {
 // ---------------------------------------------------------------------------
 
 describe('Tool: search_place', () => {
-  it('returns formatted results from Nominatim', async () => {
+  it('returns OSM results when no Google key is configured', async () => {
     const { user } = createUser(testDb);
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => [
-        {
-          osm_type: 'node',
-          osm_id: 12345,
-          name: 'Eiffel Tower',
-          display_name: 'Eiffel Tower, Paris, France',
-          lat: '48.8584',
-          lon: '2.2945',
-        },
+    searchPlacesMock.mockResolvedValue({
+      source: 'openstreetmap',
+      places: [
+        { osm_id: 'node:12345', name: 'Eiffel Tower', address: 'Eiffel Tower, Paris, France', lat: 48.8584, lng: 2.2945 },
       ],
     });
-    vi.stubGlobal('fetch', mockFetch);
 
     await withHarness(user.id, async (h) => {
       const result = await h.client.callTool({ name: 'search_place', arguments: { query: 'Eiffel Tower' } });
       const data = parseToolResult(result) as any;
+      expect(searchPlacesMock).toHaveBeenCalledWith(user.id, 'Eiffel Tower');
       expect(data.places).toHaveLength(1);
-      expect(data.places[0].name).toBe('Eiffel Tower');
       expect(data.places[0].osm_id).toBe('node:12345');
+      expect(data.places[0].name).toBe('Eiffel Tower');
       expect(data.places[0].lat).toBeCloseTo(48.8584);
     });
-
-    vi.unstubAllGlobals();
   });
 
-  it('returns error when Nominatim API fails', async () => {
+  it('returns google_place_id when Google Maps is configured', async () => {
     const { user } = createUser(testDb);
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
+    searchPlacesMock.mockResolvedValue({
+      source: 'google',
+      places: [
+        { google_place_id: 'ChIJD3uTd9hx5kcR1IQvGfr8dbk', name: 'Eiffel Tower', address: 'Champ de Mars, Paris', lat: 48.8584, lng: 2.2945, rating: 4.7, website: 'https://toureiffel.paris', phone: null },
+      ],
+    });
+
+    await withHarness(user.id, async (h) => {
+      const result = await h.client.callTool({ name: 'search_place', arguments: { query: 'Eiffel Tower' } });
+      const data = parseToolResult(result) as any;
+      expect(searchPlacesMock).toHaveBeenCalledWith(user.id, 'Eiffel Tower');
+      expect(data.places).toHaveLength(1);
+      expect(data.places[0].google_place_id).toBe('ChIJD3uTd9hx5kcR1IQvGfr8dbk');
+      expect(data.places[0].name).toBe('Eiffel Tower');
+      expect(data.places[0].rating).toBe(4.7);
+    });
+  });
+
+  it('returns error when place search fails', async () => {
+    const { user } = createUser(testDb);
+    searchPlacesMock.mockRejectedValue(new Error('Search failed'));
 
     await withHarness(user.id, async (h) => {
       const result = await h.client.callTool({ name: 'search_place', arguments: { query: 'something' } });
       expect(result.isError).toBe(true);
     });
-
-    vi.unstubAllGlobals();
   });
 });

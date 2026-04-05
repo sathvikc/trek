@@ -22,6 +22,7 @@ import { createNote as createCollabNote, updateNote as updateCollabNote, deleteN
 import {
   markCountryVisited, unmarkCountryVisited, createBucketItem, deleteBucketItem,
 } from '../services/atlasService';
+import { searchPlaces } from '../services/mapsService';
 
 const MAX_MCP_TRIP_DAYS = 90;
 
@@ -235,25 +236,12 @@ export function registerTools(server: McpServer, userId: number): void {
       },
     },
     async ({ query }) => {
-      // Use Nominatim (no API key needed, always available)
-      const params = new URLSearchParams({
-        q: query, format: 'json', addressdetails: '1', limit: '5', 'accept-language': 'en',
-      });
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
-        headers: { 'User-Agent': 'TREK Travel Planner' },
-      });
-      if (!response.ok) {
-        return { content: [{ type: 'text' as const, text: 'Search failed — Nominatim API error.' }], isError: true };
+      try {
+        const result = await searchPlaces(userId, query);
+        return ok(result);
+      } catch {
+        return { content: [{ type: 'text' as const, text: 'Place search failed.' }], isError: true };
       }
-      const data = await response.json() as { osm_type: string; osm_id: number; name: string; display_name: string; lat: string; lon: string }[];
-      const places = data.map(item => ({
-        osm_id: `${item.osm_type}:${item.osm_id}`,
-        name: item.name || item.display_name?.split(',')[0] || '',
-        address: item.display_name || '',
-        lat: parseFloat(item.lat) || null,
-        lng: parseFloat(item.lon) || null,
-      }));
-      return ok({ places });
     }
   );
 
