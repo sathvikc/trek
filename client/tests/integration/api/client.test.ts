@@ -334,12 +334,14 @@ describe('API client interceptors', () => {
   // ── backupApi.download ───────────────────────────────────────────────────────
 
   it('FE-API-013: backupApi.download creates a temp anchor and clicks it', async () => {
-    // backupApi.download uses native fetch (not axios), so mock it directly to
-    // avoid jsdom/MSW interception differences across environments.
+    // backupApi.download uses native fetch (not axios). Mock fetch directly and
+    // use a plain-object Response duck-type to avoid MSW patching the Response
+    // constructor (which calls blob.stream() — not implemented in jsdom's Blob).
     const blob = new Blob(['zip-bytes'], { type: 'application/zip' });
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(blob, { status: 200 })
-    );
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      blob: () => Promise.resolve(blob),
+    } as unknown as Response);
     const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock-url');
     const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
 

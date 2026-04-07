@@ -9,6 +9,12 @@ const flushPromises = () => new Promise<void>(r => setTimeout(r, 10));
 beforeEach(() => {
   clearImageQueue();
   vi.restoreAllMocks(); // restore any vi.spyOn() wrappers from the previous test
+
+  // jsdom's URL.createObjectURL returns '' and may be non-configurable, so
+  // Object.defineProperty in setup.ts can fail silently on CI. Assign directly
+  // here (after restoreAllMocks) so every test in this file gets a fresh mock.
+  URL.createObjectURL = vi.fn(() => 'blob:mock') as typeof URL.createObjectURL;
+  URL.revokeObjectURL = vi.fn() as typeof URL.revokeObjectURL;
 });
 
 // ── getAuthUrl ─────────────────────────────────────────────────────────────────
@@ -193,7 +199,6 @@ describe('clearImageQueue', () => {
     it('removes queued items so they never execute after active slots drain', async () => {
       const resolvers: Array<() => void> = [];
       const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL');
-      createObjectURLSpy.mockClear(); // vi.spyOn returns the same vi.fn() set in setup.ts; reset accumulated calls from prior tests
 
       vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
         await new Promise<void>(r => resolvers.push(r));
