@@ -3,14 +3,6 @@ import { z } from 'zod';
 import { canAccessTrip } from '../db/database';
 import { broadcast } from '../websocket';
 import { isDemoUser } from '../services/authService';
-
-function safeBroadcast(tripId: number, event: string, payload: Record<string, unknown>): void {
-  try {
-    broadcast(tripId, event, payload);
-  } catch (err) {
-    console.error(`[MCP] broadcast failed for ${event}:`, err?.message ?? err);
-  }
-}
 import {
   listTrips, createTrip, updateTrip, deleteTrip, getTripSummary,
   isOwner, verifyTripAccess,
@@ -22,7 +14,7 @@ import {
   deleteAssignment, reorderAssignments, getAssignmentForTrip, updateTime,
 } from '../services/assignmentService';
 import { createBudgetItem, updateBudgetItem, deleteBudgetItem } from '../services/budgetService';
-import { createItem as createPackingItem, updateItem as updatePackingItem, deleteItem as deletePackingItem } from '../services/packingService';
+import { createItem as createPackingItem, updateItem as updatePackingItem, deleteItem as deletePackingItem, listItems as listPackingItems } from '../services/packingService';
 import { createReservation, getReservation, updateReservation, deleteReservation } from '../services/reservationService';
 import { getDay, updateDay, validateAccommodationRefs } from '../services/dayService';
 import { createNote as createDayNote, getNote as getDayNote, updateNote as updateDayNote, deleteNote as deleteDayNote, dayExists as dayNoteExists } from '../services/dayNoteService';
@@ -31,6 +23,14 @@ import {
   markCountryVisited, unmarkCountryVisited, createBucketItem, deleteBucketItem,
 } from '../services/atlasService';
 import { searchPlaces } from '../services/mapsService';
+
+function safeBroadcast(tripId: number, event: string, payload: Record<string, unknown>): void {
+  try {
+    broadcast(tripId, event, payload);
+  } catch (err) {
+    console.error(`[MCP] broadcast failed for ${event}:`, err?.message ?? err);
+  }
+}
 
 const MAX_MCP_TRIP_DAYS = 90;
 
@@ -228,7 +228,7 @@ export function registerTools(server: McpServer, userId: number): void {
         website: z.string().max(500).optional(),
         phone: z.string().max(50).optional(),
         transport_mode: z.enum(['walking', 'driving', 'cycling', 'transit', 'flight']).optional(),
-        osm_id: z.string().optional().describe('OpenStreetMap ID from search_place (e.g. "way:12345") — create-only field, normally not updated'),
+        osm_id: z.string().optional().describe('OpenStreetMap ID (e.g. "way:12345")'),
       },
       annotations: TOOL_ANNOTATIONS_WRITE,
     },
@@ -753,7 +753,7 @@ export function registerTools(server: McpServer, userId: number): void {
         dayId: z.number().int().positive(),
         assignmentIds: z.array(z.number().int().positive()).min(1).max(200).describe('Assignment IDs in desired display order'),
       },
-      annotations: TOOL_ANNOTATIONS_NON_IDEMPOTENT,
+      annotations: TOOL_ANNOTATIONS_WRITE,
     },
     async ({ tripId, dayId, assignmentIds }) => {
       if (isDemoUser(userId)) return demoDenied();
@@ -1050,7 +1050,6 @@ ${days?.map((d: any, i: number) => `Day ${i + 1} (${d.date}): ${d.assignments?.l
       if (!canAccessTrip(tripId, userId)) {
         return { messages: [{ role: 'user', content: { type: 'text', text: 'Trip not found or access denied.' } }] };
       }
-      const { listPackingItems } = await import('../services/packingService');
       const items = listPackingItems(tripId);
       if (!items.length) {
         return { messages: [{ role: 'user', content: { type: 'text', text: 'No packing items found for this trip.' } }] };

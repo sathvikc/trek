@@ -122,7 +122,7 @@ export async function mcpHandler(req: Request, res: Response): Promise<void> {
     } catch (err) {
       console.error('[MCP] transport.handleRequest error:', err);
       if (!res.headersSent) {
-        res.status(500).json({ error: 'Internal MCP error', detail: String(err) });
+        res.status(500).json({ error: 'Internal MCP error' });
       }
     }
     return;
