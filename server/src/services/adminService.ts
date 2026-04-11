@@ -11,6 +11,7 @@ import { revokeUserSessions, revokeUserSessionsForClient } from '../mcp';
 import { validatePassword } from './passwordPolicy';
 import { getPhotoProviderConfig } from './memories/helpersService';
 import { send as sendNotification } from './notificationService';
+import { resolveAuthToggles } from './authService';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -254,16 +255,20 @@ export function updateOidcSettings(data: {
   client_id?: string;
   client_secret?: string;
   display_name?: string;
-  oidc_only?: boolean;
   discovery_url?: string;
-}) {
+}): { error?: string; status?: number; success?: boolean } {
+  // Lockout prevention: can't remove OIDC config when password login is disabled
+  if ((data.issuer === '' || data.client_id === '') && !resolveAuthToggles().password_login) {
+    return { error: 'Cannot remove SSO configuration while password login is disabled. Enable password login first.', status: 400 };
+  }
+
   const set = (key: string, val: string) => db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)").run(key, val || '');
   set('oidc_issuer', data.issuer ?? '');
   set('oidc_client_id', data.client_id ?? '');
   if (data.client_secret !== undefined) set('oidc_client_secret', maybe_encrypt_api_key(data.client_secret) ?? '');
   set('oidc_display_name', data.display_name ?? '');
-  set('oidc_only', data.oidc_only ? 'true' : 'false');
   set('oidc_discovery_url', data.discovery_url ?? '');
+  return { success: true };
 }
 
 // ── Demo Baseline ──────────────────────────────────────────────────────────

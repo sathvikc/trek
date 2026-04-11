@@ -102,13 +102,16 @@ router.get('/oidc', (_req: Request, res: Response) => {
 });
 
 router.put('/oidc', (req: Request, res: Response) => {
-  svc.updateOidcSettings(req.body);
+  const result = svc.updateOidcSettings(req.body);
+  if (result.error) {
+    return res.status(result.status || 400).json({ error: result.error });
+  }
   const authReq = req as AuthRequest;
   writeAudit({
     userId: authReq.user.id,
     action: 'admin.oidc_update',
     ip: getClientIp(req),
-    details: { oidc_only: !!req.body.oidc_only, issuer_set: !!req.body.issuer },
+    details: { issuer_set: !!req.body.issuer },
   });
   res.json({ success: true });
 });

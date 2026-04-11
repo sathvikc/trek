@@ -1,6 +1,10 @@
 import Database from 'better-sqlite3';
 import crypto from 'crypto';
 
+// Seeds run at startup before the DB admin panel can be used, so only env vars
+// are checked here. The granular password_login/password_registration DB toggles
+// are only relevant after the first user exists; at that point seeds have already
+// finished and skip via the userCount > 0 guard above.
 function isOidcOnlyConfigured(): boolean {
   if (process.env.OIDC_ONLY !== 'true') return false;
   return !!(process.env.OIDC_ISSUER && process.env.OIDC_CLIENT_ID);

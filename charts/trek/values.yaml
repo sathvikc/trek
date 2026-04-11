@@ -40,7 +40,9 @@ env:
   # OIDC_DISPLAY_NAME: "SSO"
   # Label shown on the SSO login button.
   # OIDC_ONLY: "false"
-  # Set to "true" to disable local password auth entirely (first SSO login becomes admin).
+  # Set to "true" to force SSO-only mode: disables password login and password registration.
+  # Overrides the granular toggles in Admin > Settings and cannot be changed at runtime.
+  # First SSO login becomes admin on a fresh instance.
   # OIDC_ADMIN_CLAIM: ""
   # OIDC claim used to identify admin users.
   # OIDC_ADMIN_VALUE: ""

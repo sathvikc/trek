@@ -171,7 +171,7 @@ services:
       # - OIDC_CLIENT_ID=trek # OpenID Connect client ID
       # - OIDC_CLIENT_SECRET=supersecret # OpenID Connect client secret
       # - OIDC_DISPLAY_NAME=SSO # Label shown on the SSO login button
-      # - OIDC_ONLY=false # Set to true to disable local password auth entirely (SSO only)
+      # - OIDC_ONLY=false # Set to true to force SSO-only login (disables password login and registration). Equivalent to toggling those off in Admin > Settings, but takes priority over any DB setting and cannot be changed at runtime.
       # - OIDC_ADMIN_CLAIM=groups # OIDC claim used to identify admin users
       # - OIDC_ADMIN_VALUE=app-trek-admins # Value of the OIDC claim that grants admin role
       # - OIDC_SCOPE=openid email profile # Fully overrides the default. Add extra scopes as needed (e.g. add groups if using OIDC_ADMIN_CLAIM)
@@ -320,7 +320,7 @@ trek.yourdomain.com {
 | `OIDC_CLIENT_ID` | OIDC client ID | — |
 | `OIDC_CLIENT_SECRET` | OIDC client secret | — |
 | `OIDC_DISPLAY_NAME` | Label shown on the SSO login button | `SSO` |
-| `OIDC_ONLY` | Disable local password auth entirely (first SSO login becomes admin) | `false` |
+| `OIDC_ONLY` | Force SSO-only mode: disables password login and password registration, regardless of the granular toggles in Admin > Settings. The first SSO login becomes admin. Use when you want this enforced at the infrastructure level and not overridable via the UI. | `false` |
 | `OIDC_ADMIN_CLAIM` | OIDC claim used to identify admin users | — |
 | `OIDC_ADMIN_VALUE` | Value of the OIDC claim that grants admin role | — |
 | `OIDC_SCOPE` | Space-separated OIDC scopes to request. **Fully replaces** the default — always include `openid email profile` plus any extra scopes you need (e.g. add `groups` when using `OIDC_ADMIN_CLAIM`) | `openid email profile` |
