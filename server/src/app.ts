@@ -205,7 +205,7 @@ export function createApp(): express.Application {
       ORDER BY sort_order, id
     `).all() as Array<{ id: string; name: string; icon: string; enabled: number; sort_order: number }>;
     const fields = db.prepare(`
-      SELECT provider_id, field_key, label, input_type, placeholder, required, secret, settings_key, payload_key, sort_order
+      SELECT provider_id, field_key, label, input_type, placeholder, hint, required, secret, settings_key, payload_key, sort_order
       FROM photo_provider_fields
       ORDER BY sort_order, id
     `).all() as Array<{
@@ -214,6 +214,7 @@ export function createApp(): express.Application {
       label: string;
       input_type: string;
       placeholder?: string | null;
+      hint?: string | null;
       required: number;
       secret: number;
       settings_key?: string | null;
@@ -243,6 +244,7 @@ export function createApp(): express.Application {
             label: f.label,
             input_type: f.input_type,
             placeholder: f.placeholder || '',
+            hint: f.hint || null,
             required: !!f.required,
             secret: !!f.secret,
             settings_key: f.settings_key || null,

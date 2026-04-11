@@ -11,6 +11,7 @@ interface ProviderField {
   label: string
   input_type: string
   placeholder?: string | null
+  hint?: string | null
   required: boolean
   secret: boolean
   settings_key?: string | null
@@ -71,6 +72,10 @@ export default function PhotoProvidersSection(): React.ReactElement {
     const payload: Record<string, unknown> = {}
     for (const field of getProviderFields(provider)) {
       const payloadKey = field.payload_key || field.settings_key || field.key
+      if (field.input_type === 'checkbox') {
+        payload[payloadKey] = values[field.key] === 'true'
+        continue
+      }
       const value = (values[field.key] || '').trim()
       if (field.secret && !value) continue
       payload[payloadKey] = value
@@ -102,6 +107,18 @@ export default function PhotoProvidersSection(): React.ReactElement {
       const cfg = getProviderConfig(provider)
       const fields = getProviderFields(provider)
 
+      // Seed checkbox defaults before the async settings load resolves
+      const checkboxDefaults: Record<string, string> = {}
+      for (const field of fields) {
+        if (field.input_type === 'checkbox') checkboxDefaults[field.key] = 'false'
+      }
+      if (Object.keys(checkboxDefaults).length > 0) {
+        setProviderValues(prev => ({
+          ...prev,
+          [provider.id]: { ...checkboxDefaults, ...(prev[provider.id] || {}) },
+        }))
+      }
+
       if (cfg.settings_get) {
         apiClient.get(cfg.settings_get).then(res => {
           if (isCancelled) return
@@ -112,7 +129,13 @@ export default function PhotoProvidersSection(): React.ReactElement {
             if (field.secret) continue
             const sourceKey = field.settings_key || field.payload_key || field.key
             const rawValue = (res.data as Record<string, unknown>)[sourceKey]
-            nextValues[field.key] = typeof rawValue === 'string' ? rawValue : rawValue != null ? String(rawValue) : ''
+            if (rawValue != null) {
+              nextValues[field.key] = typeof rawValue === 'string' ? rawValue : String(rawValue)
+            } else if (field.input_type === 'checkbox') {
+              nextValues[field.key] = 'false'
+            } else {
+              nextValues[field.key] = ''
+            }
           }
           setProviderValues(prev => ({
             ...prev,
@@ -198,14 +221,31 @@ export default function PhotoProvidersSection(): React.ReactElement {
         <div className="space-y-3">
           {fields.map(field => (
             <div key={`${provider.id}-${field.key}`}>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">{t(`memories.${field.label}`)}</label>
-              <input
-                type={field.input_type || 'text'}
-                value={values[field.key] || ''}
-                onChange={e => handleProviderFieldChange(provider.id, field.key, e.target.value)}
-                placeholder={field.secret && connected && !(values[field.key] || '') ? '••••••••' : (field.placeholder || '')}
-                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-              />
+              {field.input_type === 'checkbox' ? (
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={values[field.key] === 'true'}
+                    onChange={e => handleProviderFieldChange(provider.id, field.key, e.target.checked ? 'true' : 'false')}
+                    className="w-4 h-4 rounded border-slate-300 accent-slate-900"
+                  />
+                  <span className="text-sm font-medium text-slate-700">{t(`memories.${field.label}`)}</span>
+                </label>
+              ) : (
+                <>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">{t(`memories.${field.label}`)}</label>
+                  <input
+                    type={field.input_type || 'text'}
+                    value={values[field.key] || ''}
+                    onChange={e => handleProviderFieldChange(provider.id, field.key, e.target.value)}
+                    placeholder={field.secret && connected && !(values[field.key] || '') ? '••••••••' : (field.placeholder || '')}
+                    className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  />
+                  {field.hint && (
+                    <p className="mt-1 text-xs text-slate-500">{t(`memories.${field.hint}`)}</p>
+                  )}
+                </>
+              )}
             </div>
           ))}
           <div className="flex items-center gap-3">
@@ -228,10 +268,15 @@ export default function PhotoProvidersSection(): React.ReactElement {
                 : <Camera className="w-4 h-4" />}
               {t('memories.testConnection')}
             </button>
-            {connected && (
+            {connected ? (
               <span className="text-xs font-medium text-green-600 flex items-center gap-1">
                 <span className="w-2 h-2 bg-green-500 rounded-full" />
                 {t('memories.connected')}
+              </span>
+            ) : (
+              <span className="text-xs font-medium text-slate-400 flex items-center gap-1">
+                <span className="w-2 h-2 bg-slate-300 rounded-full" />
+                {t('memories.disconnected')}
               </span>
             )}
           </div>

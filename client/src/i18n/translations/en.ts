@@ -1475,6 +1475,9 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'memories.providerApiKey': 'API Key',
   'memories.providerUsername': 'Username',
   'memories.providerPassword': 'Password',
+  'memories.providerOTP': 'MFA code (if enabled)',
+  'memories.skipSSLVerification': 'Skip SSL certificate verification',
+  'memories.providerUrlHintSynology': 'Include the Photos app path in the URL, e.g. https://nas:5001/photo',
   'memories.testConnection': 'Test connection',
   'memories.testFirst': 'Test connection first',
   'memories.connected': 'Connected',
@@ -1482,6 +1485,7 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'memories.connectionSuccess': 'Connected to {provider_name}',
   'memories.connectionError': 'Could not connect to {provider_name}',
   'memories.saved': '{provider_name} settings saved',
+  'memories.providerDisconnectedBanner': 'Your {provider_name} connection is lost. Reconnect in Settings to view photos.',
   'memories.saveError': 'Could not save {provider_name} settings',
   //------------------------  
   'memories.addPhotos': 'Add photos',
@@ -1664,6 +1668,8 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'notifications.markUnread': 'Mark as unread',
   'notifications.delete': 'Delete',
   'notifications.system': 'System',
+  'notifications.synologySessionCleared.title': 'Synology Photos disconnected',
+  'notifications.synologySessionCleared.text': 'Your server or account changed — go to Settings to test your connection again.',
 
   // Notification test keys (dev only)
   'notifications.versionAvailable.title': 'Update Available',

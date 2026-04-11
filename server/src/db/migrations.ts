@@ -973,6 +973,32 @@ function runMigrations(db: Database.Database): void {
         }
       },
     },
+    // Migration: Add OTP field, skip_ssl column, device_id (did) column, and hint column for Synology Photos
+    () => {
+      const cols = db.prepare('PRAGMA table_info(photo_provider_fields)').all() as Array<{ name: string }>;
+      if (!cols.some(c => c.name === 'hint')) {
+        db.exec(`ALTER TABLE photo_provider_fields ADD COLUMN hint TEXT`);
+      }
+      db.exec(`
+        INSERT OR IGNORE INTO photo_provider_fields
+          (provider_id, field_key, label, input_type, placeholder, required, secret, settings_key, payload_key, sort_order)
+        VALUES
+          ('synologyphotos', 'synology_otp', 'providerOTP', 'text', '123456', 0, 0, NULL, 'synology_otp', 3)
+      `);
+      db.exec(`ALTER TABLE users ADD COLUMN synology_skip_ssl INTEGER NOT NULL DEFAULT 0`);
+      db.exec(`ALTER TABLE users ADD COLUMN synology_did TEXT`);
+      db.exec(`
+        INSERT OR IGNORE INTO photo_provider_fields
+          (provider_id, field_key, label, input_type, placeholder, required, secret, settings_key, payload_key, sort_order)
+        VALUES
+          ('synologyphotos', 'synology_skip_ssl', 'skipSSLVerification', 'checkbox', NULL, 0, 0, 'synology_skip_ssl', 'synology_skip_ssl', 4)
+      `);
+      db.exec(`
+        UPDATE photo_provider_fields
+        SET hint = 'providerUrlHintSynology'
+        WHERE provider_id = 'synologyphotos' AND field_key = 'synology_url'
+      `);
+    },
   ];
 
   if (currentVersion < migrations.length) {
