@@ -885,6 +885,120 @@ function runMigrations(db: Database.Database): void {
         ins.run(r.trip_id, r.category, idx++);
       }
     },
+    // Migration: OAuth 2.1 clients, consents, and tokens for MCP
+    () => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS oauth_clients (
+          id                 TEXT PRIMARY KEY,
+          user_id            INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          name               TEXT NOT NULL,
+          client_id          TEXT UNIQUE NOT NULL,
+          client_secret_hash TEXT NOT NULL,
+          redirect_uris      TEXT NOT NULL DEFAULT '[]',
+          allowed_scopes     TEXT NOT NULL DEFAULT '[]',
+          created_at         DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_oauth_clients_user ON oauth_clients(user_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_oauth_clients_client_id ON oauth_clients(client_id);
+
+        CREATE TABLE IF NOT EXISTS oauth_consents (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          client_id  TEXT NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
+          user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          scopes     TEXT NOT NULL DEFAULT '[]',
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(client_id, user_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS oauth_tokens (
+          id                        INTEGER PRIMARY KEY AUTOINCREMENT,
+          client_id                 TEXT NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
+          user_id                   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          access_token_hash         TEXT UNIQUE NOT NULL,
+          refresh_token_hash        TEXT UNIQUE NOT NULL,
+          scopes                    TEXT NOT NULL DEFAULT '[]',
+          access_token_expires_at   DATETIME NOT NULL,
+          refresh_token_expires_at  DATETIME NOT NULL,
+          revoked_at                DATETIME,
+          created_at                DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_oauth_tokens_user ON oauth_tokens(user_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_oauth_tokens_access  ON oauth_tokens(access_token_hash);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_oauth_tokens_refresh ON oauth_tokens(refresh_token_hash);
+      `);
+    },
+    // Migration: Refresh-token rotation chain tracking for replay detection
+    () => {
+      db.exec(`
+        ALTER TABLE oauth_tokens ADD COLUMN parent_token_id INTEGER REFERENCES oauth_tokens(id);
+        CREATE INDEX IF NOT EXISTS idx_oauth_tokens_parent ON oauth_tokens(parent_token_id);
+      `);
+    },
+    // Migration: Public client support for browser-initiated dynamic registration (DCR)
+    () => {
+      db.exec(`
+        ALTER TABLE oauth_clients ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE oauth_clients ADD COLUMN created_via TEXT NOT NULL DEFAULT 'settings_ui';
+      `);
+    },
+    // Migration: Make oauth_clients.user_id nullable to support anonymous RFC 7591 DCR clients
+    // (must run outside a transaction because PRAGMA foreign_keys cannot change mid-transaction)
+    {
+      raw: () => {
+        db.exec('PRAGMA foreign_keys = OFF');
+        try {
+          db.transaction(() => {
+            db.exec(`
+              CREATE TABLE IF NOT EXISTS oauth_clients_new (
+                id                 TEXT PRIMARY KEY,
+                user_id            INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                name               TEXT NOT NULL,
+                client_id          TEXT UNIQUE NOT NULL,
+                client_secret_hash TEXT NOT NULL,
+                redirect_uris      TEXT NOT NULL DEFAULT '[]',
+                allowed_scopes     TEXT NOT NULL DEFAULT '[]',
+                created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+                is_public          INTEGER NOT NULL DEFAULT 0,
+                created_via        TEXT NOT NULL DEFAULT 'settings_ui'
+              )
+            `);
+            db.exec(`INSERT INTO oauth_clients_new SELECT id, user_id, name, client_id, client_secret_hash, redirect_uris, allowed_scopes, created_at, is_public, created_via FROM oauth_clients`);
+            db.exec(`DROP TABLE oauth_clients`);
+            db.exec(`ALTER TABLE oauth_clients_new RENAME TO oauth_clients`);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_oauth_clients_user ON oauth_clients(user_id)`);
+            db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_oauth_clients_client_id ON oauth_clients(client_id)`);
+          })();
+        } finally {
+          db.exec('PRAGMA foreign_keys = ON');
+        }
+      },
+    },
+    // Migration: Add OTP field, skip_ssl column, device_id (did) column, and hint column for Synology Photos
+    () => {
+      const cols = db.prepare('PRAGMA table_info(photo_provider_fields)').all() as Array<{ name: string }>;
+      if (!cols.some(c => c.name === 'hint')) {
+        db.exec(`ALTER TABLE photo_provider_fields ADD COLUMN hint TEXT`);
+      }
+      db.exec(`
+        INSERT OR IGNORE INTO photo_provider_fields
+          (provider_id, field_key, label, input_type, placeholder, required, secret, settings_key, payload_key, sort_order)
+        VALUES
+          ('synologyphotos', 'synology_otp', 'providerOTP', 'text', '123456', 0, 0, NULL, 'synology_otp', 3)
+      `);
+      db.exec(`ALTER TABLE users ADD COLUMN synology_skip_ssl INTEGER NOT NULL DEFAULT 0`);
+      db.exec(`ALTER TABLE users ADD COLUMN synology_did TEXT`);
+      db.exec(`
+        INSERT OR IGNORE INTO photo_provider_fields
+          (provider_id, field_key, label, input_type, placeholder, required, secret, settings_key, payload_key, sort_order)
+        VALUES
+          ('synologyphotos', 'synology_skip_ssl', 'skipSSLVerification', 'checkbox', NULL, 0, 0, 'synology_skip_ssl', 'synology_skip_ssl', 4)
+      `);
+      db.exec(`
+        UPDATE photo_provider_fields
+        SET hint = 'providerUrlHintSynology'
+        WHERE provider_id = 'synologyphotos' AND field_key = 'synology_url'
+      `);
+    },
     // Migration 84: Journey addon — trip tracking & travel journal
     () => {
       // Register addon (disabled by default — opt-in)
@@ -1316,120 +1430,6 @@ function runMigrations(db: Database.Database): void {
         )
       `);
       db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_journey_share_journey ON journey_share_tokens(journey_id)');
-    },
-    // Migration: OAuth 2.1 clients, consents, and tokens for MCP
-    () => {
-      db.exec(`
-        CREATE TABLE IF NOT EXISTS oauth_clients (
-          id                 TEXT PRIMARY KEY,
-          user_id            INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          name               TEXT NOT NULL,
-          client_id          TEXT UNIQUE NOT NULL,
-          client_secret_hash TEXT NOT NULL,
-          redirect_uris      TEXT NOT NULL DEFAULT '[]',
-          allowed_scopes     TEXT NOT NULL DEFAULT '[]',
-          created_at         DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE INDEX IF NOT EXISTS idx_oauth_clients_user ON oauth_clients(user_id);
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_oauth_clients_client_id ON oauth_clients(client_id);
-
-        CREATE TABLE IF NOT EXISTS oauth_consents (
-          id         INTEGER PRIMARY KEY AUTOINCREMENT,
-          client_id  TEXT NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
-          user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          scopes     TEXT NOT NULL DEFAULT '[]',
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          UNIQUE(client_id, user_id)
-        );
-
-        CREATE TABLE IF NOT EXISTS oauth_tokens (
-          id                        INTEGER PRIMARY KEY AUTOINCREMENT,
-          client_id                 TEXT NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
-          user_id                   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          access_token_hash         TEXT UNIQUE NOT NULL,
-          refresh_token_hash        TEXT UNIQUE NOT NULL,
-          scopes                    TEXT NOT NULL DEFAULT '[]',
-          access_token_expires_at   DATETIME NOT NULL,
-          refresh_token_expires_at  DATETIME NOT NULL,
-          revoked_at                DATETIME,
-          created_at                DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE INDEX IF NOT EXISTS idx_oauth_tokens_user ON oauth_tokens(user_id);
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_oauth_tokens_access  ON oauth_tokens(access_token_hash);
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_oauth_tokens_refresh ON oauth_tokens(refresh_token_hash);
-      `);
-    },
-    // Migration: Refresh-token rotation chain tracking for replay detection
-    () => {
-      db.exec(`
-        ALTER TABLE oauth_tokens ADD COLUMN parent_token_id INTEGER REFERENCES oauth_tokens(id);
-        CREATE INDEX IF NOT EXISTS idx_oauth_tokens_parent ON oauth_tokens(parent_token_id);
-      `);
-    },
-    // Migration: Public client support for browser-initiated dynamic registration (DCR)
-    () => {
-      db.exec(`
-        ALTER TABLE oauth_clients ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0;
-        ALTER TABLE oauth_clients ADD COLUMN created_via TEXT NOT NULL DEFAULT 'settings_ui';
-      `);
-    },
-    // Migration: Make oauth_clients.user_id nullable to support anonymous RFC 7591 DCR clients
-    // (must run outside a transaction because PRAGMA foreign_keys cannot change mid-transaction)
-    {
-      raw: () => {
-        db.exec('PRAGMA foreign_keys = OFF');
-        try {
-          db.transaction(() => {
-            db.exec(`
-              CREATE TABLE IF NOT EXISTS oauth_clients_new (
-                id                 TEXT PRIMARY KEY,
-                user_id            INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                name               TEXT NOT NULL,
-                client_id          TEXT UNIQUE NOT NULL,
-                client_secret_hash TEXT NOT NULL,
-                redirect_uris      TEXT NOT NULL DEFAULT '[]',
-                allowed_scopes     TEXT NOT NULL DEFAULT '[]',
-                created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
-                is_public          INTEGER NOT NULL DEFAULT 0,
-                created_via        TEXT NOT NULL DEFAULT 'settings_ui'
-              )
-            `);
-            db.exec(`INSERT INTO oauth_clients_new SELECT id, user_id, name, client_id, client_secret_hash, redirect_uris, allowed_scopes, created_at, is_public, created_via FROM oauth_clients`);
-            db.exec(`DROP TABLE oauth_clients`);
-            db.exec(`ALTER TABLE oauth_clients_new RENAME TO oauth_clients`);
-            db.exec(`CREATE INDEX IF NOT EXISTS idx_oauth_clients_user ON oauth_clients(user_id)`);
-            db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_oauth_clients_client_id ON oauth_clients(client_id)`);
-          })();
-        } finally {
-          db.exec('PRAGMA foreign_keys = ON');
-        }
-      },
-    },
-    // Migration: Add OTP field, skip_ssl column, device_id (did) column, and hint column for Synology Photos
-    () => {
-      const cols = db.prepare('PRAGMA table_info(photo_provider_fields)').all() as Array<{ name: string }>;
-      if (!cols.some(c => c.name === 'hint')) {
-        db.exec(`ALTER TABLE photo_provider_fields ADD COLUMN hint TEXT`);
-      }
-      db.exec(`
-        INSERT OR IGNORE INTO photo_provider_fields
-          (provider_id, field_key, label, input_type, placeholder, required, secret, settings_key, payload_key, sort_order)
-        VALUES
-          ('synologyphotos', 'synology_otp', 'providerOTP', 'text', '123456', 0, 0, NULL, 'synology_otp', 3)
-      `);
-      db.exec(`ALTER TABLE users ADD COLUMN synology_skip_ssl INTEGER NOT NULL DEFAULT 0`);
-      db.exec(`ALTER TABLE users ADD COLUMN synology_did TEXT`);
-      db.exec(`
-        INSERT OR IGNORE INTO photo_provider_fields
-          (provider_id, field_key, label, input_type, placeholder, required, secret, settings_key, payload_key, sort_order)
-        VALUES
-          ('synologyphotos', 'synology_skip_ssl', 'skipSSLVerification', 'checkbox', NULL, 0, 0, 'synology_skip_ssl', 'synology_skip_ssl', 4)
-      `);
-      db.exec(`
-        UPDATE photo_provider_fields
-        SET hint = 'providerUrlHintSynology'
-        WHERE provider_id = 'synologyphotos' AND field_key = 'synology_url'
-      `);
     },
   ];
 
