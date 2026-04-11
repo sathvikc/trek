@@ -18,6 +18,12 @@ beforeEach(() => {
   seedStore(usePermissionsStore, {
     level: 'owner',
   } as any);
+  // Intercept CurrencyWidget's external fetch so it resolves before teardown
+  server.use(
+    http.get('https://api.exchangerate-api.com/v4/latest/:currency', () => {
+      return HttpResponse.json({ rates: { USD: 1.08, EUR: 1, CHF: 0.97 } });
+    }),
+  );
 });
 
 describe('DashboardPage', () => {
