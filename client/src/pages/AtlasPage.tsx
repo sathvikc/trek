@@ -467,26 +467,31 @@ export default function AtlasPage(): React.ReactElement {
 
     if (Object.keys(regionGeoCache.current).length === 0) return
 
-    // Build set of visited region codes first
+    // Build set of visited region codes and per-country name sets
     const visitedRegionCodes = new Set<string>()
-    const visitedRegionNames = new Set<string>()
+    const visitedRegionNamesByCountry = new Map<string, Set<string>>()
     const regionPlaceCounts: Record<string, number> = {}
-    for (const [, regions] of Object.entries(visitedRegions)) {
+    for (const [countryCode, regions] of Object.entries(visitedRegions)) {
+      const names = new Set<string>()
       for (const r of regions) {
         visitedRegionCodes.add(r.code)
-        visitedRegionNames.add(r.name.toLowerCase())
+        names.add(r.name.toLowerCase())
         regionPlaceCounts[r.code] = r.placeCount
-        regionPlaceCounts[r.name.toLowerCase()] = r.placeCount
+        regionPlaceCounts[`${countryCode}:${r.name.toLowerCase()}`] = r.placeCount
       }
+      visitedRegionNamesByCountry.set(countryCode, names)
     }
 
-    // Match feature by ISO code OR region name (native or English)
+    // Match feature by ISO code OR region name scoped to the feature's country
     const isVisitedFeature = (f: any) => {
       if (visitedRegionCodes.has(f.properties?.iso_3166_2)) return true
+      const countryA2 = (f.properties?.iso_a2 || '').toUpperCase()
+      const countryNames = visitedRegionNamesByCountry.get(countryA2)
+      if (!countryNames) return false
       const name = (f.properties?.name || '').toLowerCase()
-      if (visitedRegionNames.has(name)) return true
+      if (countryNames.has(name)) return true
       const nameEn = (f.properties?.name_en || '').toLowerCase()
-      if (nameEn && visitedRegionNames.has(nameEn)) return true
+      if (nameEn && countryNames.has(nameEn)) return true
       return false
     }
 
@@ -538,7 +543,7 @@ export default function AtlasPage(): React.ReactElement {
         const regionCode = feature?.properties?.iso_3166_2 || ''
         const countryA2 = (feature?.properties?.iso_a2 || '').toUpperCase()
         const visited = isVisitedFeature(feature)
-        const count = regionPlaceCounts[regionCode] || regionPlaceCounts[regionName.toLowerCase()] || regionPlaceCounts[regionNameEn.toLowerCase()] || 0
+        const count = regionPlaceCounts[regionCode] || regionPlaceCounts[`${countryA2}:${regionName.toLowerCase()}`] || regionPlaceCounts[`${countryA2}:${regionNameEn.toLowerCase()}`] || 0
         layer.on('click', () => {
           if (!countryA2) return
           if (visited) {
