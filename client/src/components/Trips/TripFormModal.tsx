@@ -385,8 +385,8 @@ export default function TripFormModal({ isOpen, onClose, onSave, trip, onCoverUp
                       try {
                         await tripsApi.removeMember(trip!.id, m.id)
                         setExistingMembers(prev => prev.filter(x => x.id !== m.id))
-                        toast.success(`${m.username} removed`)
-                      } catch { toast.error('Failed to remove') }
+                        toast.success(t('trips.memberRemoved', { username: m.username }))
+                      } catch { toast.error(t('trips.memberRemoveError')) }
                     }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 99,
@@ -431,8 +431,8 @@ export default function TripFormModal({ isOpen, onClose, onSave, trip, onCoverUp
                       try {
                         await tripsApi.addMember(trip.id, user.username)
                         setExistingMembers(prev => [...prev, { id: user.id, username: user.username }])
-                        toast.success(`${user.username} added`)
-                      } catch { toast.error('Failed to add') }
+                        toast.success(t('trips.memberAdded', { username: user.username }))
+                      } catch { toast.error(t('trips.memberAddError')) }
                     }
                   } else {
                     setSelectedMembers(prev => prev.includes(Number(value)) ? prev : [...prev, Number(value)])

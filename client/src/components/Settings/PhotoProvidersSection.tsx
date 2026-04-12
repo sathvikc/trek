@@ -253,7 +253,7 @@ export default function PhotoProvidersSection(): React.ReactElement {
               onClick={() => handleSaveProvider(provider)}
               disabled={!canSave || !!saving[provider.id] || isProviderSaveDisabled(provider)}
               className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700 disabled:bg-slate-400"
-              title={!canSave ? 'Save route is not configured for this provider' : isProviderSaveDisabled(provider) ? 'Please fill all required fields' : ''}
+              title={!canSave ? t('memories.saveRouteNotConfigured') : isProviderSaveDisabled(provider) ? t('memories.fillRequiredFields') : ''}
             >
               <Save className="w-4 h-4" /> {t('common.save')}
             </button>
@@ -261,7 +261,7 @@ export default function PhotoProvidersSection(): React.ReactElement {
               onClick={() => handleTestProvider(provider)}
               disabled={!canTest || testing}
               className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50"
-              title={!canTest ? 'Test route is not configured for this provider' : ''}
+              title={!canTest ? t('memories.testRouteNotConfigured') : ''}
             >
               {testing
                 ? <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" />

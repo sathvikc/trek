@@ -563,9 +563,9 @@ export default function JourneyDetailPage() {
           setDeleteTarget(null)
           loadJourney(Number(id))
         }}
-        title="Delete Entry"
-        message={`Delete "${deleteTarget?.title || 'this entry'}"? This cannot be undone.`}
-        confirmLabel="Delete"
+        title={t('journey.entries.deleteTitle')}
+        message={t('journey.deleteConfirmMessage', { title: deleteTarget?.title || 'this entry' })}
+        confirmLabel={t('common.delete')}
         danger
       />
 
@@ -584,9 +584,9 @@ export default function JourneyDetailPage() {
             toast.error(t('journey.trips.unlinkFailed'))
           }
         }}
-        title="Unlink Trip"
-        message={`Unlink "${unlinkTrip?.title}"? All synced entries and photos from this trip will be permanently deleted. This cannot be undone.`}
-        confirmLabel="Unlink"
+        title={t('journey.trips.unlinkTrip')}
+        message={t('journey.trips.unlinkMessage', { title: unlinkTrip?.title })}
+        confirmLabel={t('journey.trips.unlink')}
         danger
       />
 
@@ -811,7 +811,7 @@ function GalleryView({ entries, journeyId, userId, trips, onPhotoClick, onRefres
     for (const f of files) formData.append('photos', f)
     try {
       await journeyApi.uploadPhotos(entryId, formData)
-      toast.success(`${files.length} photos uploaded`)
+      toast.success(t('journey.photosUploaded', { count: files.length }))
       onRefresh()
     } catch {
       toast.error(t('journey.settings.coverFailed'))
@@ -938,7 +938,7 @@ function GalleryView({ entries, journeyId, userId, trips, onPhotoClick, onRefres
               } catch {}
             }
             if (added > 0) {
-              toast.success(`${added} photos added`)
+              toast.success(t('journey.photosAdded', { count: added }))
               onRefresh()
             }
             setShowPicker(false)
@@ -1179,8 +1179,8 @@ function EntryCard({ entry, onEdit, onDelete, onPhotoClick }: {
               <>
                 <div className="fixed inset-0 z-[99]" onClick={() => setMenuOpen(false)} />
                 <div className="fixed z-[100] bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 min-w-[120px]" style={{ top: (menuBtnRef.current?.getBoundingClientRect().bottom || 0) + 4, right: window.innerWidth - (menuBtnRef.current?.getBoundingClientRect().right || 0) }}>
-                  <button onClick={() => { setMenuOpen(false); onEdit() }} className="w-full text-left px-3 py-1.5 text-[12px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 flex items-center gap-2"><Pencil size={12} /> Edit</button>
-                  <button onClick={() => { setMenuOpen(false); onDelete() }} className="w-full text-left px-3 py-1.5 text-[12px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"><Trash2 size={12} /> Delete</button>
+                  <button onClick={() => { setMenuOpen(false); onEdit() }} className="w-full text-left px-3 py-1.5 text-[12px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 flex items-center gap-2"><Pencil size={12} /> {t('common.edit')}</button>
+                  <button onClick={() => { setMenuOpen(false); onDelete() }} className="w-full text-left px-3 py-1.5 text-[12px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"><Trash2 size={12} /> {t('common.delete')}</button>
                 </div>
               </>
             )}
@@ -2177,7 +2177,7 @@ function EntryEditor({ entry, journeyId, tripDates, galleryPhotos, onClose, onSa
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50">
           <button onClick={onClose} className="px-3.5 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 text-[13px] font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700">{t('common.cancel')}</button>
           <button onClick={handleSave} disabled={saving} className="px-3.5 py-2 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-[13px] font-medium hover:bg-zinc-800 dark:hover:bg-zinc-100 disabled:opacity-50">
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? t('common.saving') : t('common.save')}
           </button>
         </div>
       </div>
@@ -2546,7 +2546,7 @@ function JourneySettingsDialog({ journey, onClose, onSaved, onOpenInvite }: {
       await updateJourney(journey.id, { title, subtitle: subtitle || null })
       onSaved()
     } catch {
-      toast.error('Failed to save')
+      toast.error(t('journey.settings.saveFailed'))
     } finally {
       setSaving(false)
     }
@@ -2559,10 +2559,10 @@ function JourneySettingsDialog({ journey, onClose, onSaved, onOpenInvite }: {
     formData.append('cover', file)
     try {
       await journeyApi.uploadCover(journey.id, formData)
-      toast.success('Cover updated')
+      toast.success(t('journey.settings.coverUpdated'))
       onSaved()
     } catch {
-      toast.error('Upload failed')
+      toast.error(t('journey.settings.coverFailed'))
     }
   }
 
@@ -2573,7 +2573,7 @@ function JourneySettingsDialog({ journey, onClose, onSaved, onOpenInvite }: {
       await deleteJourney(journey.id)
       navigate('/journey')
     } catch {
-      toast.error('Failed to delete')
+      toast.error(t('journey.settings.failedToDelete'))
     }
   }
 
@@ -2633,14 +2633,14 @@ function JourneySettingsDialog({ journey, onClose, onSaved, onOpenInvite }: {
 
           {/* Synced Trips */}
           <div>
-            <label className="text-[10px] font-semibold tracking-[0.12em] uppercase text-zinc-500 block mb-2">Synced Trips</label>
+            <label className="text-[10px] font-semibold tracking-[0.12em] uppercase text-zinc-500 block mb-2">{t('journey.detail.syncedTrips')}</label>
             <div className="flex flex-col gap-1.5">
               {journey.trips.map((trip: any) => (
                 <div key={trip.trip_id} className="flex items-center gap-2.5 p-2 rounded-lg bg-zinc-50 dark:bg-zinc-800">
                   <div className="w-8 h-8 rounded-md flex-shrink-0" style={{ background: pickGradient(trip.trip_id) }} />
                   <div className="flex-1 min-w-0">
                     <div className="text-[12px] font-medium text-zinc-900 dark:text-white">{trip.title}</div>
-                    <div className="text-[10px] text-zinc-500">{trip.place_count || 0} places</div>
+                    <div className="text-[10px] text-zinc-500">{trip.place_count || 0} {t('journey.synced.places')}</div>
                   </div>
                   <button
                     onClick={() => setUnlinkTarget({ trip_id: trip.trip_id, title: trip.title })}
@@ -2651,19 +2651,19 @@ function JourneySettingsDialog({ journey, onClose, onSaved, onOpenInvite }: {
                   </button>
                 </div>
               ))}
-              {journey.trips.length === 0 && <p className="text-[11px] text-zinc-400">No trips linked</p>}
+              {journey.trips.length === 0 && <p className="text-[11px] text-zinc-400">{t('journey.trips.noTripsLinkedSettings')}</p>}
               <button
                 onClick={() => setShowAddTrip(true)}
                 className="w-full mt-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-600 text-[12px] font-medium text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:border-zinc-500 dark:hover:text-zinc-300 transition-colors"
               >
-                <Plus size={14} /> Add Trip
+                <Plus size={14} /> {t('journey.trips.addTrip')}
               </button>
             </div>
           </div>
 
           {/* Contributors */}
           <div>
-            <label className="text-[10px] font-semibold tracking-[0.12em] uppercase text-zinc-500 block mb-2">Contributors</label>
+            <label className="text-[10px] font-semibold tracking-[0.12em] uppercase text-zinc-500 block mb-2">{t('journey.detail.contributors')}</label>
             <div className="flex flex-col gap-2">
               {journey.contributors.map((c: any) => (
                 <div key={c.user_id} className="flex items-center gap-2.5">
@@ -2678,7 +2678,7 @@ function JourneySettingsDialog({ journey, onClose, onSaved, onOpenInvite }: {
                 onClick={onOpenInvite}
                 className="w-full mt-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-600 text-[12px] font-medium text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:hover:border-zinc-500 dark:hover:text-zinc-300 transition-colors"
               >
-                <UserPlus size={14} /> Invite Contributor
+                <UserPlus size={14} /> {t('journey.contributors.invite')}
               </button>
             </div>
           </div>
@@ -2697,11 +2697,11 @@ function JourneySettingsDialog({ journey, onClose, onSaved, onOpenInvite }: {
             className="flex items-center gap-1.5 text-[12px] font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg px-2.5 py-2 mr-auto"
           >
             <Trash2 size={13} />
-            Delete
+            {t('journey.settings.delete')}
           </button>
           <button onClick={onClose} className="px-3.5 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 text-[13px] font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700">{t('common.cancel')}</button>
           <button onClick={handleSave} disabled={saving || !title.trim()} className="px-3.5 py-2 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-[13px] font-medium hover:bg-zinc-800 dark:hover:bg-zinc-100 disabled:opacity-40">
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? t('common.saving') : t('common.save')}
           </button>
         </div>
       </div>
@@ -2714,16 +2714,16 @@ function JourneySettingsDialog({ journey, onClose, onSaved, onOpenInvite }: {
           if (!unlinkTarget) return
           try {
             await journeyApi.removeTrip(journey.id, unlinkTarget.trip_id)
-            toast.success('Trip unlinked')
+            toast.success(t('journey.trips.tripUnlinked'))
             setUnlinkTarget(null)
             onSaved()
           } catch {
-            toast.error('Failed to unlink trip')
+            toast.error(t('journey.trips.unlinkFailed'))
           }
         }}
-        title="Unlink Trip"
-        message={`Unlink "${unlinkTarget?.title}"? All synced entries and photos from this trip will be permanently deleted. This cannot be undone.`}
-        confirmLabel="Unlink"
+        title={t('journey.trips.unlinkTrip')}
+        message={t('journey.trips.unlinkMessage', { title: unlinkTarget?.title })}
+        confirmLabel={t('journey.trips.unlink')}
         danger
       />
 
@@ -2741,9 +2741,9 @@ function JourneySettingsDialog({ journey, onClose, onSaved, onOpenInvite }: {
         isOpen={showDeleteConfirm}
         onClose={() => setShowDeleteConfirm(false)}
         onConfirm={handleDelete}
-        title="Delete Journey"
-        message={`Delete "${journey.title}"? All entries and photos will be lost.`}
-        confirmLabel="Delete"
+        title={t('journey.settings.deleteJourney')}
+        message={t('journey.settings.deleteMessage', { title: journey.title })}
+        confirmLabel={t('common.delete')}
         danger
       />
     </div>

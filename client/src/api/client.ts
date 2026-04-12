@@ -1,5 +1,34 @@
 import axios, { AxiosInstance } from 'axios'
 import { getSocketId } from './websocket'
+import en from '../i18n/translations/en'
+import br from '../i18n/translations/br'
+import de from '../i18n/translations/de'
+import es from '../i18n/translations/es'
+import fr from '../i18n/translations/fr'
+import it from '../i18n/translations/it'
+import nl from '../i18n/translations/nl'
+import pl from '../i18n/translations/pl'
+import cs from '../i18n/translations/cs'
+import hu from '../i18n/translations/hu'
+import ru from '../i18n/translations/ru'
+import zh from '../i18n/translations/zh'
+import zhTw from '../i18n/translations/zhTw'
+import ar from '../i18n/translations/ar'
+
+const rateLimitTranslations: Record<string, Record<string, string | unknown>> = {
+  en, br, de, es, fr, it, nl, pl, cs, hu, ru, zh, 'zh-TW': zhTw, ar,
+}
+
+function translateRateLimit(): string {
+  const fallback = 'Too many attempts. Please try again later.'
+  try {
+    const lang = localStorage.getItem('app_language') || 'en'
+    const table = rateLimitTranslations[lang] || rateLimitTranslations.en
+    return (table['common.tooManyAttempts'] as string) || (rateLimitTranslations.en['common.tooManyAttempts'] as string) || fallback
+  } catch {
+    return fallback
+  }
+}
 
 export const apiClient: AxiosInstance = axios.create({
   baseURL: '/api',
@@ -21,7 +50,7 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// Response interceptor - handle 401
+// Response interceptor - handle 401, 403 MFA, 429 rate limit
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -37,6 +66,16 @@ apiClient.interceptors.response.use(
       !window.location.pathname.startsWith('/settings')
     ) {
       window.location.href = '/settings?mfa=required'
+    }
+    if (error.response?.status === 429) {
+      const translated = translateRateLimit()
+      const data = error.response.data as { error?: string } | undefined
+      if (data && typeof data === 'object') {
+        data.error = translated
+      } else {
+        error.response.data = { error: translated }
+      }
+      error.message = translated
     }
     return Promise.reject(error)
   }

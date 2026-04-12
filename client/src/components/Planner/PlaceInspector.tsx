@@ -601,7 +601,7 @@ export default function PlaceInspector({
           {selectedDayId && (
             assignmentInDay ? (
               <ActionButton onClick={() => onRemoveAssignment(selectedDayId, assignmentInDay.id)} variant="ghost" icon={<Minus size={13} />}
-                label={<><span className="hidden sm:inline">{t('inspector.removeFromDay')}</span><span className="sm:hidden">Remove</span></>} />
+                label={<><span className="hidden sm:inline">{t('inspector.removeFromDay')}</span><span className="sm:hidden">{t('inspector.remove')}</span></>} />
             ) : (
               <ActionButton onClick={() => onAssignToDay(place.id)} variant="primary" icon={<Plus size={13} />} label={t('inspector.addToDay')} />
             )

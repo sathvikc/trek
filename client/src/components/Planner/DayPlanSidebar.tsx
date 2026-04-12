@@ -616,7 +616,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
           await tripActions.reorderAssignments(tripId, capturedDayId, capturedPrevIds)
         })
       }
-    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Unknown error') }
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : t('common.unknownError')) }
   }
 
   const handleMergedDrop = async (dayId, fromType, fromId, toType, toId, insertAfter = false) => {
@@ -703,7 +703,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
         tripActions.setAssignments(currentAssignments)
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Unknown error')
+      toast.error(err instanceof Error ? err.message : t('common.unknownError'))
       return
     }
 
@@ -852,9 +852,9 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
             await tripActions.moveAssignment(tripId, Number(assignmentId), dayId, capturedFromDayId, capturedOrderIndex)
           })
         })
-        .catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+        .catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
     } else if (noteId && fromDayId !== dayId) {
-      tripActions.moveDayNote(tripId, fromDayId, dayId, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+      tripActions.moveDayNote(tripId, fromDayId, dayId, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
     }
     setDraggingId(null)
     setDropTargetKey(null)
@@ -959,7 +959,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                   a.download = `${trip?.title || 'trip'}.ics`
                   a.click()
                   URL.revokeObjectURL(url)
-                } catch { toast.error('ICS export failed') }
+                } catch { toast.error(t('planner.icsExportFailed')) }
               }}
               onMouseEnter={() => setIcsHover(true)}
               onMouseLeave={() => setIcsHover(false)}
@@ -1186,11 +1186,11 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                       if (placeId) {
                         onAssignToDay?.(parseInt(placeId), day.id)
                       } else if (assignmentId && fromDayId !== day.id) {
-                        tripActions.moveAssignment(tripId, Number(assignmentId), fromDayId, day.id).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                        tripActions.moveAssignment(tripId, Number(assignmentId), fromDayId, day.id).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                       } else if (assignmentId) {
                         handleMergedDrop(day.id, 'place', Number(assignmentId), 'transport', transportId, isAfter)
                       } else if (noteId && fromDayId !== day.id) {
-                        tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                        tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                       } else if (noteId) {
                         handleMergedDrop(day.id, 'note', Number(noteId), 'transport', transportId, isAfter)
                       }
@@ -1204,11 +1204,11 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                       setDropTargetKey(null); window.__dragData = null; return
                     }
                     if (assignmentId && fromDayId !== day.id) {
-                      tripActions.moveAssignment(tripId, Number(assignmentId), fromDayId, day.id).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                      tripActions.moveAssignment(tripId, Number(assignmentId), fromDayId, day.id).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                       setDraggingId(null); setDropTargetKey(null); dragDataRef.current = null; return
                     }
                     if (noteId && fromDayId !== day.id) {
-                      tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                      tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                       setDraggingId(null); setDropTargetKey(null); dragDataRef.current = null; return
                     }
                     const m = getMergedItems(day.id)
@@ -1304,7 +1304,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                                 setDropTargetKey(null); window.__dragData = null
                               } else if (fromAssignmentId && fromDayId !== day.id) {
                                 const toIdx = getDayAssignments(day.id).findIndex(a => a.id === assignment.id)
-                                tripActions.moveAssignment(tripId, Number(fromAssignmentId), fromDayId, day.id, toIdx).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                                tripActions.moveAssignment(tripId, Number(fromAssignmentId), fromDayId, day.id, toIdx).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                                 setDraggingId(null); setDropTargetKey(null); dragDataRef.current = null
                               } else if (fromAssignmentId) {
                                 handleMergedDrop(day.id, 'place', Number(fromAssignmentId), 'place', assignment.id)
@@ -1312,7 +1312,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                                 const tm = getMergedItems(day.id)
                                 const toIdx = tm.findIndex(i => i.type === 'place' && i.data.id === assignment.id)
                                 const so = toIdx <= 0 ? (tm[0]?.sortKey ?? 0) - 1 : (tm[toIdx - 1].sortKey + tm[toIdx].sortKey) / 2
-                                tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId), so).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                                tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId), so).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                                 setDraggingId(null); setDropTargetKey(null); dragDataRef.current = null
                               } else if (noteId) {
                                 handleMergedDrop(day.id, 'note', Number(noteId), 'place', assignment.id)
@@ -1508,11 +1508,11 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                               if (placeId) {
                                 onAssignToDay?.(parseInt(placeId), day.id)
                               } else if (fromAssignmentId && fromDayId !== day.id) {
-                                tripActions.moveAssignment(tripId, Number(fromAssignmentId), fromDayId, day.id).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                                tripActions.moveAssignment(tripId, Number(fromAssignmentId), fromDayId, day.id).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                               } else if (fromAssignmentId) {
                                 handleMergedDrop(day.id, 'place', Number(fromAssignmentId), 'transport', res.id, insertAfter)
                               } else if (noteId && fromDayId !== day.id) {
-                                tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                                tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                               } else if (noteId) {
                                 handleMergedDrop(day.id, 'note', Number(noteId), 'transport', res.id, insertAfter)
                               }
@@ -1596,7 +1596,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                               const tm = getMergedItems(day.id)
                               const toIdx = tm.findIndex(i => i.type === 'note' && i.data.id === note.id)
                               const so = toIdx <= 0 ? (tm[0]?.sortKey ?? 0) - 1 : (tm[toIdx - 1].sortKey + tm[toIdx].sortKey) / 2
-                              tripActions.moveDayNote(tripId, fromDayId, day.id, Number(fromNoteId), so).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                              tripActions.moveDayNote(tripId, fromDayId, day.id, Number(fromNoteId), so).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                               setDraggingId(null); setDropTargetKey(null)
                             } else if (fromNoteId && fromNoteId !== String(note.id)) {
                               handleMergedDrop(day.id, 'note', Number(fromNoteId), 'note', note.id)
@@ -1604,7 +1604,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                               const tm = getMergedItems(day.id)
                               const noteIdx = tm.findIndex(i => i.type === 'note' && i.data.id === note.id)
                               const toIdx = tm.slice(0, noteIdx).filter(i => i.type === 'place').length
-                              tripActions.moveAssignment(tripId, Number(fromAssignmentId), fromDayId, day.id, toIdx).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                              tripActions.moveAssignment(tripId, Number(fromAssignmentId), fromDayId, day.id, toIdx).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                               setDraggingId(null); setDropTargetKey(null)
                             } else if (fromAssignmentId) {
                               handleMergedDrop(day.id, 'place', Number(fromAssignmentId), 'note', note.id)
@@ -1669,11 +1669,11 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                       }
                       if (!assignmentId && !noteId) { dragDataRef.current = null; window.__dragData = null; return }
                       if (assignmentId && fromDayId !== day.id) {
-                        tripActions.moveAssignment(tripId, Number(assignmentId), fromDayId, day.id).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                        tripActions.moveAssignment(tripId, Number(assignmentId), fromDayId, day.id).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                         setDraggingId(null); setDropTargetKey(null); dragDataRef.current = null; return
                       }
                       if (noteId && fromDayId !== day.id) {
-                        tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Unknown error'))
+                        tripActions.moveDayNote(tripId, fromDayId, day.id, Number(noteId)).catch((err: unknown) => toast.error(err instanceof Error ? err.message : t('common.unknownError')))
                         setDraggingId(null); setDropTargetKey(null); dragDataRef.current = null; return
                       }
                       const m = getMergedItems(day.id)

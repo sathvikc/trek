@@ -8,6 +8,8 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'common.loading': 'Loading...',
   'common.import': 'Import',
   'common.error': 'Error',
+  'common.unknownError': 'Unknown error',
+  'common.tooManyAttempts': 'Too many attempts. Please try again later.',
   'common.back': 'Back',
   'common.all': 'All',
   'common.close': 'Close',
@@ -30,6 +32,10 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'common.hoursAgo': '{count}h ago',
   'common.daysAgo': '{count}d ago',
   'common.saved': 'Saved',
+  'trips.memberRemoved': '{username} removed',
+  'trips.memberRemoveError': 'Failed to remove',
+  'trips.memberAdded': '{username} added',
+  'trips.memberAddError': 'Failed to add',
   'trips.reminder': 'Reminder',
   'trips.reminderNone': 'None',
   'trips.reminderDay': 'day',
@@ -42,6 +48,8 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'common.uploading': 'Uploading…',
   'common.backToPlanning': 'Back to Planning',
   'common.reset': 'Reset',
+  'common.expand': 'Expand',
+  'common.collapse': 'Collapse',
 
   // Navbar
   'nav.trip': 'Trip',
@@ -438,6 +446,10 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'login.mfaHint': 'Open Google Authenticator, Authy, or another TOTP app.',
   'login.mfaBack': '← Back to sign in',
   'login.mfaVerify': 'Verify',
+  'login.invalidInviteLink': 'Invalid or expired invite link',
+  'login.oidcFailed': 'OIDC login failed',
+  'login.usernameRequired': 'Username is required',
+  'login.passwordMinLength': 'Password must be at least 8 characters',
 
   // Register
   'register.passwordMismatch': 'Passwords do not match',
@@ -955,6 +967,7 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'inspector.showHours': 'Show opening hours',
   'inspector.files': 'Files',
   'inspector.filesCount': '{count} files',
+  'inspector.remove': 'Remove',
   'inspector.removeFromDay': 'Remove from Day',
   'inspector.addToDay': 'Add to Day',
   'inspector.confirmedRes': 'Confirmed Reservation',
@@ -1109,6 +1122,9 @@ const en: Record<string, string | { name: string; category: string }[]> = {
 
   // Files
   'files.title': 'Files',
+  'files.pageTitle': 'Files & Documents',
+  'files.subtitle': '{count} files for {trip}',
+  'files.downloadPdf': 'Download PDF',
   'files.count': '{count} files',
   'files.countSingular': '1 file',
   'files.uploaded': '{count} uploaded',
@@ -1187,7 +1203,6 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'packing.menuCheckAll': 'Check All',
   'packing.menuUncheckAll': 'Uncheck All',
   'packing.menuDeleteCat': 'Delete Category',
-  'packing.assignUser': 'Assign user',
   'packing.noMembers': 'No trip members',
   'packing.addItem': 'Add item',
   'packing.addItemPlaceholder': 'Item name...',
@@ -1200,7 +1215,6 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'packing.saveAsTemplate': 'Save as template',
   'packing.templateName': 'Template name',
   'packing.templateSaved': 'Packing list saved as template',
-  'packing.assignUser': 'Assign user',
   'packing.bags': 'Bags',
   'packing.noBag': 'Unassigned',
   'packing.totalWeight': 'Total weight',
@@ -1356,6 +1370,13 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'backup.keep.forever': 'Keep forever',
 
   // Photos
+  'photos.title': 'Photos',
+  'photos.subtitle': '{count} photos for {trip}',
+  'photos.dropHere': 'Drop photos here...',
+  'photos.dropHereActive': 'Drop photos here',
+  'photos.captionForAll': 'Caption (for all)',
+  'photos.captionPlaceholder': 'Optional caption...',
+  'photos.addCaption': 'Add caption...',
   'photos.allDays': 'All Days',
   'photos.noPhotos': 'No photos yet',
   'photos.uploadHint': 'Upload your travel photos',
@@ -1363,6 +1384,12 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'photos.linkPlace': 'Link Place',
   'photos.noPlace': 'No Place',
   'photos.uploadN': '{n} photo(s) upload',
+  'photos.linkDay': 'Link Day',
+  'photos.noDay': 'No Day',
+  'photos.dayLabel': 'Day {number}',
+  'photos.photoSelected': 'Photo selected',
+  'photos.photosSelected': 'Photos selected',
+  'photos.fileTypeHint': 'JPG, PNG, WebP · max. 10 MB · up to 30 photos',
 
   // Backup restore modal
   'backup.restoreConfirmTitle': 'Restore Backup?',
@@ -1389,6 +1416,7 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'planner.routeCalculated': 'Route calculated',
   'planner.routeCalcFailed': 'Route could not be calculated',
   'planner.routeError': 'Error calculating route',
+  'planner.icsExportFailed': 'ICS export failed',
   'planner.routeOptimized': 'Route optimized',
   'planner.reservationUpdated': 'Reservation updated',
   'planner.reservationAdded': 'Reservation added',
@@ -1536,6 +1564,9 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'memories.error.addPhotos': 'Failed to add photos',
   'memories.error.removePhoto': 'Failed to remove photo',
   'memories.error.toggleSharing': 'Failed to update sharing',
+  'memories.saveRouteNotConfigured': 'Save route is not configured for this provider',
+  'memories.testRouteNotConfigured': 'Test route is not configured for this provider',
+  'memories.fillRequiredFields': 'Please fill all required fields',
 
   // Collab Addon
   'collab.tabs.chat': 'Chat',
@@ -1968,6 +1999,10 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'journey.settings.saveFailed': 'Failed to save',
   'journey.settings.coverUpdated': 'Cover updated',
   'journey.settings.coverFailed': 'Upload failed',
+  'journey.settings.failedToDelete': 'Failed to delete',
+  'journey.entries.deleteTitle': 'Delete Entry',
+  'journey.photosUploaded': '{count} photos uploaded',
+  'journey.photosAdded': '{count} photos added',
 
   // Journey — Public Page
   'journey.public.notFound': 'Not Found',

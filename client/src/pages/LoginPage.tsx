@@ -65,7 +65,7 @@ export default function LoginPage(): React.ReactElement {
       authApi.validateInvite(invite).then(() => {
         setInviteValid(true)
       }).catch(() => {
-        setError('Invalid or expired invite link')
+        setError(t('login.invalidInviteLink'))
       })
       window.history.replaceState({}, '', window.location.pathname)
     }
@@ -82,12 +82,12 @@ export default function LoginPage(): React.ReactElement {
             await loadUser()
             navigate('/dashboard', { replace: true })
           } else {
-            setError(data.error || 'OIDC login failed')
+            setError(data.error || t('login.oidcFailed'))
           }
         })
         .catch(() => {
           window.history.replaceState({}, '', '/login')
-          setError('OIDC login failed')
+          setError(t('login.oidcFailed'))
         })
         .finally(() => setIsLoading(false))
       return
@@ -172,8 +172,8 @@ export default function LoginPage(): React.ReactElement {
         return
       }
       if (mode === 'register') {
-        if (!username.trim()) { setError('Username is required'); setIsLoading(false); return }
-        if (password.length < 8) { setError('Password must be at least 8 characters'); setIsLoading(false); return }
+        if (!username.trim()) { setError(t('login.usernameRequired')); setIsLoading(false); return }
+        if (password.length < 8) { setError(t('login.passwordMinLength')); setIsLoading(false); return }
         await register(username, email, password, inviteToken || undefined)
       } else {
         const result = await login(email, password)

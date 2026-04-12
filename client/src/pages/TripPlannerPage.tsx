@@ -366,7 +366,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
           }
         })
       }
-    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Unknown error') }
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : t('common.unknownError')) }
   }, [deletePlaceId, tripId, toast, selectedPlaceId, pushUndo])
 
   const handleAssignToDay = useCallback(async (placeId, dayId, position) => {
@@ -383,7 +383,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
           await tripActions.removeAssignment(tripId, capturedTarget, capturedAssignmentId)
         })
       }
-    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Unknown error') }
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : t('common.unknownError')) }
   }, [selectedDayId, tripId, toast, updateRouteForDay, pushUndo])
 
   const handleRemoveAssignment = useCallback(async (dayId, assignmentId) => {
@@ -401,7 +401,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
         })
       }
     }
-    catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Unknown error') }
+    catch (err: unknown) { toast.error(err instanceof Error ? err.message : t('common.unknownError')) }
   }, [tripId, toast, updateRouteForDay, pushUndo])
 
   const handleReorder = useCallback((dayId, orderedIds) => {
@@ -430,7 +430,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
 
   const handleUpdateDayTitle = useCallback(async (dayId, title) => {
     try { await tripActions.updateDayTitle(tripId, dayId, title) }
-    catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Unknown error') }
+    catch (err: unknown) { toast.error(err instanceof Error ? err.message : t('common.unknownError')) }
   }, [tripId, toast])
 
   const handleSaveReservation = async (data) => {
@@ -453,7 +453,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
         }
         return r
       }
-    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Unknown error') }
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : t('common.unknownError')) }
   }
 
   const handleDeleteReservation = async (id) => {
@@ -463,7 +463,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
       // Refresh accommodations in case a hotel booking was deleted
       accommodationsApi.list(tripId).then(d => setTripAccommodations(d.accommodations || [])).catch(() => {})
     }
-    catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Unknown error') }
+    catch (err: unknown) { toast.error(err instanceof Error ? err.message : t('common.unknownError')) }
   }
 
   const selectedPlace = selectedPlaceId ? places.find(p => p.id === selectedPlaceId) : null
@@ -818,7 +818,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
                     }))
                   } catch {}
                 }}
-                onUpdatePlace={async (placeId, data) => { try { await tripActions.updatePlace(tripId, placeId, data) } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Unknown error') } }}
+                onUpdatePlace={async (placeId, data) => { try { await tripActions.updatePlace(tripId, placeId, data) } catch (err: unknown) { toast.error(err instanceof Error ? err.message : t('common.unknownError')) } }}
                 leftWidth={(isMobile || window.innerWidth < 900) ? 0 : (leftCollapsed ? 0 : leftWidth)}
                 rightWidth={(isMobile || window.innerWidth < 900) ? 0 : (rightCollapsed ? 0 : rightWidth)}
               />
@@ -867,7 +867,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
                         }))
                       } catch {}
                     }}
-                    onUpdatePlace={async (placeId, data) => { try { await tripActions.updatePlace(tripId, placeId, data) } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Unknown error') } }}
+                    onUpdatePlace={async (placeId, data) => { try { await tripActions.updatePlace(tripId, placeId, data) } catch (err: unknown) { toast.error(err instanceof Error ? err.message : t('common.unknownError')) } }}
                     leftWidth={0}
                     rightWidth={0}
                   />
