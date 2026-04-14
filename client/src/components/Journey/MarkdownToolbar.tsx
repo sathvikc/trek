@@ -6,7 +6,7 @@ interface Props {
   dark?: boolean
 }
 
-type FormatAction = { type: 'wrap'; before: string; after: string } | { type: 'line'; prefix: string }
+type FormatAction = { type: 'wrap'; before: string; after: string } | { type: 'line'; prefix: string } | { type: 'insert'; text: string }
 
 const ACTIONS: Array<{ icon: typeof Bold; label: string; action: FormatAction }> = [
   { icon: Bold, label: 'Bold', action: { type: 'wrap', before: '**', after: '**' } },
@@ -16,7 +16,7 @@ const ACTIONS: Array<{ icon: typeof Bold; label: string; action: FormatAction }>
   { icon: Link, label: 'Link', action: { type: 'wrap', before: '[', after: '](url)' } },
   { icon: List, label: 'List', action: { type: 'line', prefix: '- ' } },
   { icon: ListOrdered, label: 'Ordered', action: { type: 'line', prefix: '1. ' } },
-  { icon: Minus, label: 'Divider', action: { type: 'line', prefix: '\n---\n' } },
+  { icon: Minus, label: 'Divider', action: { type: 'insert', text: '\n\n---\n\n' } },
 ]
 
 export default function MarkdownToolbar({ textareaRef, onUpdate, dark }: Props) {
@@ -35,6 +35,9 @@ export default function MarkdownToolbar({ textareaRef, onUpdate, dark }: Props) 
     if (action.type === 'wrap') {
       result = text.slice(0, start) + action.before + selected + action.after + text.slice(end)
       cursorPos = selected ? end + action.before.length + action.after.length : start + action.before.length
+    } else if (action.type === 'insert') {
+      result = text.slice(0, start) + action.text + text.slice(end)
+      cursorPos = start + action.text.length
     } else {
       // line prefix — find start of current line
       const lineStart = text.lastIndexOf('\n', start - 1) + 1
