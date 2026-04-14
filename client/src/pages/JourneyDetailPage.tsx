@@ -2739,7 +2739,7 @@ function JourneySettingsDialog({ journey, onClose, onSaved, onOpenInvite }: {
 
   return (
     <div className="fixed inset-0 z-[200] flex items-end md:items-center justify-center md:p-5 overscroll-none" style={{ background: 'rgba(9,9,11,0.6)', backdropFilter: 'blur(6px)' }} onClick={onClose} onTouchMove={e => { if (e.target === e.currentTarget) e.preventDefault() }}>
-      <div className="bg-white dark:bg-zinc-900 rounded-t-2xl md:rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.2)] max-w-[480px] w-full max-h-[85vh] md:max-h-[90vh] flex flex-col overflow-hidden pb-safe" onClick={e => e.stopPropagation()}>
+      <div className="bg-white dark:bg-zinc-900 rounded-t-2xl md:rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.2)] max-w-[480px] w-full max-h-[85vh] md:max-h-[90vh] flex flex-col overflow-hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }} onClick={e => e.stopPropagation()}>
 
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-700">
           <h2 className="text-[16px] font-bold text-zinc-900 dark:text-white">{t('journey.settings.title')}</h2>
@@ -2851,7 +2851,7 @@ function JourneySettingsDialog({ journey, onClose, onSaved, onOpenInvite }: {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-2 px-6 py-4 pb-6 md:pb-4 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50">
+        <div className="flex flex-wrap items-center gap-2 px-6 py-4 pb-6 md:pb-4 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50">
           <button
             onClick={() => setShowDeleteConfirm(true)}
             className="flex items-center gap-1.5 text-[12px] font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg px-2.5 py-2 mr-auto"
