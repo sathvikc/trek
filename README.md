@@ -273,6 +273,9 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 86400;
+        # File uploads are capped at 50 MB; backup restore ZIPs can include the full
+        # uploads directory and may exceed that — raise this value if restores fail.
+        client_max_body_size 500m;
     }
 
     location / {
