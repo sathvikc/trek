@@ -66,6 +66,7 @@ const ADMIN_CHANNEL_LABEL_KEYS: Record<string, string> = {
   inapp: 'settings.notificationPreferences.inapp',
   email: 'settings.notificationPreferences.email',
   webhook: 'settings.notificationPreferences.webhook',
+  ntfy: 'settings.notificationPreferences.ntfy',
 }
 
 function AdminNotificationsPanel({ t, toast }: { t: (k: string) => string; toast: ReturnType<typeof useToast> }) {
@@ -78,7 +79,7 @@ function AdminNotificationsPanel({ t, toast }: { t: (k: string) => string; toast
 
   if (!matrix) return <p style={{ fontSize: 12, color: 'var(--text-faint)', fontStyle: 'italic', padding: 16 }}>Loading…</p>
 
-  const visibleChannels = (['inapp', 'email', 'webhook'] as const).filter(ch => {
+  const visibleChannels = (['inapp', 'email', 'webhook', 'ntfy'] as const).filter(ch => {
     if (!matrix.available_channels[ch]) return false
     return matrix.event_types.some((evt: string) => matrix.implemented_combos[evt]?.includes(ch))
   })
@@ -1168,15 +1169,16 @@ export default function AdminPage(): React.ReactElement {
             const activeChans = rawChannels === 'none' ? [] : rawChannels.split(',').map((c: string) => c.trim())
             const emailActive = activeChans.includes('email')
             const webhookActive = activeChans.includes('webhook')
+            const ntfyActive = activeChans.includes('ntfy')
 
-            const setChannels = async (email: boolean, webhook: boolean) => {
-              const chans = [email && 'email', webhook && 'webhook'].filter(Boolean).join(',') || 'none'
+            const setChannels = async (email: boolean, webhook: boolean, ntfy: boolean) => {
+              const chans = [email && 'email', webhook && 'webhook', ntfy && 'ntfy'].filter(Boolean).join(',') || 'none'
               setSmtpValues(prev => ({ ...prev, notification_channels: chans }))
               try {
                 await authApi.updateAppSettings({ notification_channels: chans })
               } catch {
                 // Revert state on failure
-                const reverted = [emailActive && 'email', webhookActive && 'webhook'].filter(Boolean).join(',') || 'none'
+                const reverted = [emailActive && 'email', webhookActive && 'webhook', ntfyActive && 'ntfy'].filter(Boolean).join(',') || 'none'
                 setSmtpValues(prev => ({ ...prev, notification_channels: reverted }))
                 toast.error(t('common.error'))
               }
@@ -1207,7 +1209,7 @@ export default function AdminPage(): React.ReactElement {
                       <p className="text-xs text-slate-400 mt-1">{t('admin.smtp.hint')}</p>
                     </div>
                     <button
-                      onClick={() => setChannels(!emailActive, webhookActive)}
+                      onClick={() => setChannels(!emailActive, webhookActive, ntfyActive)}
                       className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0"
                       style={{ background: emailActive ? 'var(--text-primary)' : 'var(--border-primary)' }}
                     >
@@ -1283,12 +1285,30 @@ export default function AdminPage(): React.ReactElement {
                       <p className="text-xs text-slate-400 mt-1">{t('admin.webhook.hint')}</p>
                     </div>
                     <button
-                      onClick={() => setChannels(emailActive, !webhookActive)}
+                      onClick={() => setChannels(emailActive, !webhookActive, ntfyActive)}
                       className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0"
                       style={{ background: webhookActive ? 'var(--text-primary)' : 'var(--border-primary)' }}
                     >
                       <span className="absolute left-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-200"
                         style={{ transform: webhookActive ? 'translateX(20px)' : 'translateX(0)' }} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Ntfy Panel */}
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                  <div className="px-6 py-4 flex items-center justify-between">
+                    <div>
+                      <h2 className="font-semibold text-slate-900">{t('admin.notifications.ntfy')}</h2>
+                      <p className="text-xs text-slate-400 mt-1">{t('admin.ntfy.hint') || 'Allow users to configure their own ntfy topics for push notifications.'}</p>
+                    </div>
+                    <button
+                      onClick={() => setChannels(emailActive, webhookActive, !ntfyActive)}
+                      className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0"
+                      style={{ background: ntfyActive ? 'var(--text-primary)' : 'var(--border-primary)' }}
+                    >
+                      <span className="absolute left-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-200"
+                        style={{ transform: ntfyActive ? 'translateX(20px)' : 'translateX(0)' }} />
                     </button>
                   </div>
                 </div>
@@ -1354,6 +1374,89 @@ export default function AdminPage(): React.ReactElement {
                       className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors disabled:opacity-40"
                     >
                       {t('admin.notifications.testWebhook')}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Admin Ntfy Panel */}
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-slate-100">
+                    <h2 className="font-semibold text-slate-900">{t('admin.notifications.adminNtfyPanel.title')}</h2>
+                    <p className="text-xs text-slate-400 mt-1">{t('admin.notifications.adminNtfyPanel.hint')}</p>
+                  </div>
+                  <div className="p-6 space-y-3">
+                    {smtpLoaded && (
+                      <>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-1">{t('admin.notifications.adminNtfyPanel.serverLabel')}</label>
+                          <input
+                            type="text"
+                            value={smtpValues.admin_ntfy_server || ''}
+                            onChange={e => setSmtpValues(prev => ({ ...prev, admin_ntfy_server: e.target.value }))}
+                            placeholder={t('admin.notifications.adminNtfyPanel.serverPlaceholder')}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-1">{t('admin.notifications.adminNtfyPanel.topicLabel')}</label>
+                          <input
+                            type="text"
+                            value={smtpValues.admin_ntfy_topic || ''}
+                            onChange={e => setSmtpValues(prev => ({ ...prev, admin_ntfy_topic: e.target.value }))}
+                            placeholder={t('admin.notifications.adminNtfyPanel.topicPlaceholder')}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-1">{t('admin.notifications.adminNtfyPanel.tokenLabel')}</label>
+                          <input
+                            type="password"
+                            value={smtpValues.admin_ntfy_token === '••••••••' ? '' : smtpValues.admin_ntfy_token || ''}
+                            onChange={e => setSmtpValues(prev => ({ ...prev, admin_ntfy_token: e.target.value }))}
+                            placeholder={smtpValues.admin_ntfy_token === '••••••••' ? '••••••••' : ''}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div className="px-6 pb-4 flex items-center gap-2 border-t border-slate-100 pt-4">
+                    <button
+                      onClick={async () => {
+                        try {
+                          await authApi.updateAppSettings({
+                            admin_ntfy_server: smtpValues.admin_ntfy_server || '',
+                            admin_ntfy_topic: smtpValues.admin_ntfy_topic || '',
+                            ...(smtpValues.admin_ntfy_token && smtpValues.admin_ntfy_token !== '••••••••'
+                              ? { admin_ntfy_token: smtpValues.admin_ntfy_token }
+                              : {}),
+                          })
+                          toast.success(t('admin.notifications.adminNtfyPanel.saved'))
+                        } catch { toast.error(t('common.error')) }
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors">
+                      <Save className="w-4 h-4" />{t('common.save')}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const topic = smtpValues.admin_ntfy_topic?.trim()
+                        if (!topic) return
+                        try {
+                          const token = smtpValues.admin_ntfy_token && smtpValues.admin_ntfy_token !== '••••••••'
+                            ? smtpValues.admin_ntfy_token : null
+                          const result = await notificationsApi.testNtfy({
+                            topic,
+                            server: smtpValues.admin_ntfy_server || null,
+                            token,
+                          })
+                          if (result.success) toast.success(t('admin.notifications.adminNtfyPanel.testSuccess'))
+                          else toast.error(result.error || t('admin.notifications.adminNtfyPanel.testFailed'))
+                        } catch { toast.error(t('admin.notifications.adminNtfyPanel.testFailed')) }
+                      }}
+                      disabled={!smtpValues.admin_ntfy_topic?.trim()}
+                      className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors disabled:opacity-40"
+                    >
+                      {t('admin.notifications.adminNtfyPanel.test')}
                     </button>
                   </div>
                 </div>

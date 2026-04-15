@@ -3,7 +3,7 @@ import { decrypt_api_key } from './apiKeyCrypto';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-export type NotifChannel = 'email' | 'webhook' | 'inapp';
+export type NotifChannel = 'email' | 'webhook' | 'inapp' | 'ntfy';
 
 export type NotifEventType =
   | 'trip_invite'
@@ -20,19 +20,20 @@ export interface AvailableChannels {
   email: boolean;
   webhook: boolean;
   inapp: boolean;
+  ntfy: boolean;
 }
 
 // Which channels are implemented for each event type.
 // Only implemented combos show toggles in the user preferences UI.
 const IMPLEMENTED_COMBOS: Record<NotifEventType, NotifChannel[]> = {
-  trip_invite:       ['inapp', 'email', 'webhook'],
-  booking_change:    ['inapp', 'email', 'webhook'],
-  trip_reminder:     ['inapp', 'email', 'webhook'],
-  vacay_invite:      ['inapp', 'email', 'webhook'],
-  photos_shared:     ['inapp', 'email', 'webhook'],
-  collab_message:    ['inapp', 'email', 'webhook'],
-  packing_tagged:    ['inapp', 'email', 'webhook'],
-  version_available: ['inapp', 'email', 'webhook'],
+  trip_invite:       ['inapp', 'email', 'webhook', 'ntfy'],
+  booking_change:    ['inapp', 'email', 'webhook', 'ntfy'],
+  trip_reminder:     ['inapp', 'email', 'webhook', 'ntfy'],
+  vacay_invite:      ['inapp', 'email', 'webhook', 'ntfy'],
+  photos_shared:     ['inapp', 'email', 'webhook', 'ntfy'],
+  collab_message:    ['inapp', 'email', 'webhook', 'ntfy'],
+  packing_tagged:    ['inapp', 'email', 'webhook', 'ntfy'],
+  version_available: ['inapp', 'email', 'webhook', 'ntfy'],
   synology_session_cleared: ['inapp'],
 };
 
@@ -55,7 +56,7 @@ function getAppSetting(key: string): string | null {
 export function getActiveChannels(): NotifChannel[] {
   const raw = getAppSetting('notification_channels') || getAppSetting('notification_channel') || 'none';
   if (raw === 'none') return [];
-  return raw.split(',').map(c => c.trim()).filter((c): c is NotifChannel => c === 'email' || c === 'webhook');
+  return raw.split(',').map(c => c.trim()).filter((c): c is NotifChannel => c === 'email' || c === 'webhook' || c === 'ntfy');
 }
 
 /**
@@ -64,8 +65,8 @@ export function getActiveChannels(): NotifChannel[] {
  */
 export function getAvailableChannels(): AvailableChannels {
   const hasSmtp = !!(process.env.SMTP_HOST || getAppSetting('smtp_host'));
-  const hasWebhook = getActiveChannels().includes('webhook');
-  return { email: hasSmtp, webhook: hasWebhook, inapp: true };
+  const activeChannels = getActiveChannels();
+  return { email: hasSmtp, webhook: activeChannels.includes('webhook'), ntfy: activeChannels.includes('ntfy'), inapp: true };
 }
 
 // ── Per-user preference checks ─────────────────────────────────────────────
@@ -115,8 +116,8 @@ export function getPreferencesMatrix(userId: number, userRole: string, scope: 'u
     const channels = IMPLEMENTED_COMBOS[eventType];
     preferences[eventType] = {};
     for (const channel of channels) {
-      // Admin-scoped events use global settings for email/webhook
-      if (scope === 'admin' && ADMIN_SCOPED_EVENTS.has(eventType) && (channel === 'email' || channel === 'webhook')) {
+      // Admin-scoped events use global settings for email/webhook/ntfy
+      if (scope === 'admin' && ADMIN_SCOPED_EVENTS.has(eventType) && (channel === 'email' || channel === 'webhook' || channel === 'ntfy')) {
         preferences[eventType]![channel] = getAdminGlobalPref(eventType, channel);
       } else {
         preferences[eventType]![channel] = stored[eventType]?.[channel] ?? true;
@@ -134,12 +135,14 @@ export function getPreferencesMatrix(userId: number, userRole: string, scope: 'u
   if (scope === 'admin') {
     const hasSmtp = !!(process.env.SMTP_HOST || getAppSetting('smtp_host'));
     const hasAdminWebhook = !!(getAppSetting('admin_webhook_url'));
-    available_channels = { email: hasSmtp, webhook: hasAdminWebhook, inapp: true };
+    const hasAdminNtfy = !!(getAppSetting('admin_ntfy_topic'));
+    available_channels = { email: hasSmtp, webhook: hasAdminWebhook, ntfy: hasAdminNtfy, inapp: true };
   } else {
     const activeChannels = getActiveChannels();
     available_channels = {
       email: activeChannels.includes('email'),
       webhook: activeChannels.includes('webhook'),
+      ntfy: activeChannels.includes('ntfy'),
       inapp: true,
     };
   }
@@ -154,19 +157,19 @@ export function getPreferencesMatrix(userId: number, userRole: string, scope: 'u
 
 // ── Admin global preferences (stored in app_settings) ─────────────────────
 
-const ADMIN_GLOBAL_CHANNELS: NotifChannel[] = ['email', 'webhook'];
+const ADMIN_GLOBAL_CHANNELS: NotifChannel[] = ['email', 'webhook', 'ntfy'];
 
 /**
  * Returns the global admin preference for an event+channel.
  * Stored in app_settings as `admin_notif_pref_{event}_{channel}`.
  * Defaults to true (enabled) when no row exists.
  */
-export function getAdminGlobalPref(event: NotifEventType, channel: 'email' | 'webhook'): boolean {
+export function getAdminGlobalPref(event: NotifEventType, channel: 'email' | 'webhook' | 'ntfy'): boolean {
   const val = getAppSetting(`admin_notif_pref_${event}_${channel}`);
   return val !== '0';
 }
 
-function setAdminGlobalPref(event: NotifEventType, channel: 'email' | 'webhook', enabled: boolean): void {
+function setAdminGlobalPref(event: NotifEventType, channel: 'email' | 'webhook' | 'ntfy', enabled: boolean): void {
   db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)').run(
     `admin_notif_pref_${event}_${channel}`,
     enabled ? '1' : '0'
@@ -250,7 +253,7 @@ export function setAdminPreferences(
   for (const [eventType, channels] of Object.entries(globalPrefs)) {
     if (!channels) continue;
     for (const [channel, enabled] of Object.entries(channels)) {
-      setAdminGlobalPref(eventType as NotifEventType, channel as 'email' | 'webhook', enabled);
+      setAdminGlobalPref(eventType as NotifEventType, channel as 'email' | 'webhook' | 'ntfy', enabled);
     }
   }
 

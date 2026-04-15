@@ -61,6 +61,10 @@ export const notificationHandlers = [
     return HttpResponse.json({ success: true });
   }),
 
+  http.post('/api/notifications/test-ntfy', async () => {
+    return HttpResponse.json({ success: true });
+  }),
+
   http.post('/api/notifications/in-app/:id/respond', async ({ request, params }) => {
     const body = await request.json() as { response: string };
     return HttpResponse.json({

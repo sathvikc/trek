@@ -30,7 +30,7 @@ const MFA_BACKUP_CODE_COUNT = 10;
 const ADMIN_SETTINGS_KEYS = [
   'allow_registration', 'allowed_file_types', 'require_mfa',
   'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'smtp_skip_tls_verify',
-  'notification_channels', 'admin_webhook_url',
+  'notification_channels', 'admin_webhook_url', 'admin_ntfy_server', 'admin_ntfy_topic', 'admin_ntfy_token',
   'password_login', 'password_registration', 'oidc_login', 'oidc_registration',
 ];
 
@@ -714,7 +714,7 @@ export function getAppSettings(userId: number): { error?: string; status?: numbe
   const result: Record<string, string> = {};
   for (const key of ADMIN_SETTINGS_KEYS) {
     const row = db.prepare("SELECT value FROM app_settings WHERE key = ?").get(key) as { value: string } | undefined;
-    if (row) result[key] = (key === 'smtp_pass' || key === 'admin_webhook_url') ? '••••••••' : row.value;
+    if (row) result[key] = (key === 'smtp_pass' || key === 'admin_webhook_url' || key === 'admin_ntfy_token') ? '••••••••' : row.value;
   }
   return { data: result };
 }
@@ -768,6 +768,8 @@ export function updateAppSettings(
       if (key === 'smtp_pass') val = encrypt_api_key(val);
       if (key === 'admin_webhook_url' && val === '••••••••') continue;
       if (key === 'admin_webhook_url' && val) val = maybe_encrypt_api_key(val) ?? val;
+      if (key === 'admin_ntfy_token' && val === '••••••••') continue;
+      if (key === 'admin_ntfy_token' && val) val = maybe_encrypt_api_key(val) ?? val;
       db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)").run(key, val);
     }
   }
@@ -778,6 +780,7 @@ export function updateAppSettings(
   const smtpChanged = changedKeys.some(k => k.startsWith('smtp_'));
   if (changedKeys.includes('notification_channels')) summary.notification_channels = body.notification_channels;
   if (changedKeys.includes('admin_webhook_url')) summary.admin_webhook_url_updated = true;
+  if (changedKeys.some(k => k.startsWith('admin_ntfy_'))) summary.admin_ntfy_updated = true;
   if (smtpChanged) summary.smtp_settings_updated = true;
   if (changedKeys.includes('allow_registration')) summary.allow_registration = body.allow_registration;
   if (changedKeys.includes('allowed_file_types')) summary.allowed_file_types_updated = true;

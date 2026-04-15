@@ -1,7 +1,7 @@
 import { db } from '../db/database';
 import { maybe_encrypt_api_key } from './apiKeyCrypto';
 
-const ENCRYPTED_SETTING_KEYS = new Set(['webhook_url']);
+const ENCRYPTED_SETTING_KEYS = new Set(['webhook_url', 'ntfy_token']);
 
 export function getUserSettings(userId: number): Record<string, unknown> {
   const rows = db.prepare('SELECT key, value FROM settings WHERE user_id = ?').all(userId) as { key: string; value: string }[];

@@ -348,6 +348,43 @@ describe('Notification test endpoints', () => {
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('success');
   });
+
+  it('NOTIF-007 — POST /api/notifications/test-ntfy returns 400 when no topic configured', async () => {
+    const { user } = createUser(testDb);
+
+    const res = await request(app)
+      .post('/api/notifications/test-ntfy')
+      .set('Cookie', authCookie(user.id))
+      .send({});
+
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('error');
+  });
+
+  it('NOTIF-008 — POST /api/notifications/test-ntfy with explicit topic returns 200', async () => {
+    const { user } = createUser(testDb);
+
+    const res = await request(app)
+      .post('/api/notifications/test-ntfy')
+      .set('Cookie', authCookie(user.id))
+      .send({ topic: 'trek-integration-test-topic' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('success');
+  });
+
+  it('NOTIF-009 — POST /api/notifications/test-ntfy falls back to user saved topic', async () => {
+    const { user } = createUser(testDb);
+    testDb.prepare("INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, 'ntfy_topic', 'saved-user-topic')").run(user.id);
+
+    const res = await request(app)
+      .post('/api/notifications/test-ntfy')
+      .set('Cookie', authCookie(user.id))
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('success');
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

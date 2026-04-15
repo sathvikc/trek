@@ -8,7 +8,7 @@ import Section from './Section'
 
 interface PreferencesMatrix {
   preferences: Record<string, Record<string, boolean>>
-  available_channels: { email: boolean; webhook: boolean; inapp: boolean }
+  available_channels: { email: boolean; webhook: boolean; inapp: boolean; ntfy: boolean }
   event_types: string[]
   implemented_combos: Record<string, string[]>
 }
@@ -17,6 +17,7 @@ const CHANNEL_LABEL_KEYS: Record<string, string> = {
   email: 'settings.notificationPreferences.email',
   webhook: 'settings.notificationPreferences.webhook',
   inapp: 'settings.notificationPreferences.inapp',
+  ntfy: 'settings.notificationPreferences.ntfy',
 }
 
 const EVENT_LABEL_KEYS: Record<string, string> = {
@@ -39,6 +40,12 @@ export default function NotificationsTab(): React.ReactElement {
   const [webhookIsSet, setWebhookIsSet] = useState(false)
   const [webhookSaving, setWebhookSaving] = useState(false)
   const [webhookTesting, setWebhookTesting] = useState(false)
+  const [ntfyTopic, setNtfyTopic] = useState('')
+  const [ntfyServer, setNtfyServer] = useState('')
+  const [ntfyToken, setNtfyToken] = useState('')
+  const [ntfyTokenIsSet, setNtfyTokenIsSet] = useState(false)
+  const [ntfySaving, setNtfySaving] = useState(false)
+  const [ntfyTesting, setNtfyTesting] = useState(false)
 
   useEffect(() => {
     notificationsApi.getPreferences().then((data: PreferencesMatrix) => setMatrix(data)).catch(() => {})
@@ -50,12 +57,21 @@ export default function NotificationsTab(): React.ReactElement {
       } else {
         setWebhookUrl(val)
       }
+      setNtfyTopic((data.settings?.ntfy_topic as string) || '')
+      setNtfyServer((data.settings?.ntfy_server as string) || '')
+      const rawToken = (data.settings?.ntfy_token as string) || ''
+      if (rawToken === '••••••••') {
+        setNtfyTokenIsSet(true)
+        setNtfyToken('')
+      } else {
+        setNtfyToken(rawToken)
+      }
     }).catch(() => {})
   }, [])
 
   const visibleChannels = matrix
-    ? (['email', 'webhook', 'inapp'] as const).filter(ch => {
-        if (!matrix.available_channels[ch]) return false
+    ? (['email', 'webhook', 'ntfy', 'inapp'] as const).filter(ch => {
+        if (!matrix.available_channels[ch as keyof typeof matrix.available_channels]) return false
         return matrix.event_types.some(evt => matrix.implemented_combos[evt]?.includes(ch))
       })
     : []
@@ -106,6 +122,52 @@ export default function NotificationsTab(): React.ReactElement {
     }
   }
 
+  const saveNtfySettings = async () => {
+    setNtfySaving(true)
+    try {
+      await settingsApi.setBulk({
+        ntfy_topic: ntfyTopic,
+        ntfy_server: ntfyServer,
+        ...(ntfyToken && ntfyToken !== '••••••••' ? { ntfy_token: ntfyToken } : {}),
+      })
+      if (ntfyToken && ntfyToken !== '••••••••') setNtfyTokenIsSet(true)
+      toast.success(t('settings.ntfyUrl.saved'))
+    } catch {
+      toast.error(t('common.error'))
+    } finally {
+      setNtfySaving(false)
+    }
+  }
+
+  const clearNtfyToken = async () => {
+    try {
+      await settingsApi.set('ntfy_token', '')
+      setNtfyToken('')
+      setNtfyTokenIsSet(false)
+      toast.success(t('settings.ntfyUrl.tokenCleared'))
+    } catch {
+      toast.error(t('common.error'))
+    }
+  }
+
+  const testNtfySettings = async () => {
+    if (!ntfyTopic) return
+    setNtfyTesting(true)
+    try {
+      const result = await notificationsApi.testNtfy({
+        topic: ntfyTopic,
+        server: ntfyServer || null,
+        token: ntfyToken && ntfyToken !== '••••••••' ? ntfyToken : null,
+      })
+      if (result.success) toast.success(t('settings.ntfyUrl.testSuccess'))
+      else toast.error(result.error || t('settings.ntfyUrl.testFailed'))
+    } catch {
+      toast.error(t('settings.ntfyUrl.testFailed'))
+    } finally {
+      setNtfyTesting(false)
+    }
+  }
+
   const renderContent = () => {
     if (!matrix) return <p style={{ fontSize: 12, color: 'var(--text-faint)', fontStyle: 'italic' }}>{t('common.loading')}</p>
 
@@ -139,7 +201,7 @@ export default function NotificationsTab(): React.ReactElement {
                 disabled={webhookSaving}
                 style={{ fontSize: 12, padding: '6px 12px', background: 'var(--text-primary)', color: 'var(--bg-primary)', border: 'none', borderRadius: 6, cursor: webhookSaving ? 'not-allowed' : 'pointer', opacity: webhookSaving ? 0.6 : 1 }}
               >
-                {t('settings.webhookUrl.save')}
+                {t('common.save')}
               </button>
               <button
                 onClick={testWebhookUrl}
@@ -147,6 +209,66 @@ export default function NotificationsTab(): React.ReactElement {
                 style={{ fontSize: 12, padding: '6px 12px', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-primary)', borderRadius: 6, cursor: ((!webhookUrl && !webhookIsSet) || webhookTesting) ? 'not-allowed' : 'pointer', opacity: ((!webhookUrl && !webhookIsSet) || webhookTesting) ? 0.5 : 1 }}
               >
                 {t('settings.webhookUrl.test')}
+              </button>
+            </div>
+          </div>
+        )}
+        {matrix.available_channels.ntfy && (
+          <div style={{ marginBottom: 16, padding: '12px', background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border-primary)' }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>
+              {t('settings.ntfyUrl.topicLabel')}
+            </label>
+            <p style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 8 }}>{t('settings.ntfyUrl.hint')}</p>
+            <input
+              type="text"
+              value={ntfyTopic}
+              onChange={e => setNtfyTopic(e.target.value)}
+              placeholder={t('settings.ntfyUrl.topicPlaceholder')}
+              style={{ width: '100%', boxSizing: 'border-box', fontSize: 13, padding: '6px 10px', border: '1px solid var(--border-primary)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)', marginBottom: 6 }}
+            />
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>
+              {t('settings.ntfyUrl.serverLabel')}
+            </label>
+            <input
+              type="text"
+              value={ntfyServer}
+              onChange={e => setNtfyServer(e.target.value)}
+              placeholder={t('settings.ntfyUrl.serverPlaceholder')}
+              style={{ width: '100%', boxSizing: 'border-box', fontSize: 13, padding: '6px 10px', border: '1px solid var(--border-primary)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)', marginBottom: 6 }}
+            />
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>
+              {t('settings.ntfyUrl.tokenLabel')}
+            </label>
+            <p style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 4 }}>{t('settings.ntfyUrl.tokenHint')}</p>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="password"
+                value={ntfyToken}
+                onChange={e => setNtfyToken(e.target.value)}
+                placeholder={ntfyTokenIsSet ? '••••••••' : ''}
+                style={{ flex: 1, fontSize: 13, padding: '6px 10px', border: '1px solid var(--border-primary)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+              />
+              {ntfyTokenIsSet && (
+                <button
+                  onClick={clearNtfyToken}
+                  style={{ fontSize: 12, padding: '6px 12px', background: 'transparent', color: 'var(--color-danger, #e53e3e)', border: '1px solid var(--color-danger, #e53e3e)', borderRadius: 6, cursor: 'pointer' }}
+                >
+                  {t('settings.ntfyUrl.clearToken')}
+                </button>
+              )}
+              <button
+                onClick={saveNtfySettings}
+                disabled={ntfySaving}
+                style={{ fontSize: 12, padding: '6px 12px', background: 'var(--text-primary)', color: 'var(--bg-primary)', border: 'none', borderRadius: 6, cursor: ntfySaving ? 'not-allowed' : 'pointer', opacity: ntfySaving ? 0.6 : 1 }}
+              >
+                {t('common.save')}
+              </button>
+              <button
+                onClick={testNtfySettings}
+                disabled={!ntfyTopic || ntfyTesting}
+                style={{ fontSize: 12, padding: '6px 12px', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-primary)', borderRadius: 6, cursor: (!ntfyTopic || ntfyTesting) ? 'not-allowed' : 'pointer', opacity: (!ntfyTopic || ntfyTesting) ? 0.5 : 1 }}
+              >
+                {t('settings.ntfyUrl.test')}
               </button>
             </div>
           </div>

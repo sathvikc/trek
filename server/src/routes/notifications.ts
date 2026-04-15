@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import { authenticate } from '../middleware/auth';
 import { AuthRequest } from '../types';
-import { testSmtp, testWebhook, getAdminWebhookUrl, getUserWebhookUrl } from '../services/notifications';
+import { testSmtp, testWebhook, testNtfy, getAdminWebhookUrl, getUserWebhookUrl, getUserNtfyConfig, getAdminNtfyConfig } from '../services/notifications';
 import {
   getNotifications,
   getUnreadCount,
@@ -45,6 +45,26 @@ router.post('/test-webhook', authenticate, async (req: Request, res: Response) =
   if (typeof url !== 'string') return res.status(400).json({ error: 'url must be a string' });
   try { new URL(url); } catch { return res.status(400).json({ error: 'Invalid URL' }); }
   res.json(await testWebhook(url));
+});
+
+router.post('/test-ntfy', authenticate, async (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  const { topic, server, token } = req.body as { topic?: string; server?: string; token?: string };
+
+  // Always load saved config for fallbacks (token may be masked or absent in request)
+  const userCfg = getUserNtfyConfig(authReq.user.id);
+  const adminCfg = getAdminNtfyConfig();
+
+  const resolvedTopic = topic || userCfg?.topic || undefined;
+  const resolvedServer = server || userCfg?.server || adminCfg.server || undefined;
+  // Reuse saved token when request sends null, empty, or the masked placeholder
+  const resolvedToken = (token && token !== '••••••••')
+    ? token
+    : (userCfg?.token ?? adminCfg.token ?? null);
+
+  if (!resolvedTopic) return res.status(400).json({ error: 'No ntfy topic configured' });
+
+  res.json(await testNtfy({ topic: resolvedTopic, server: resolvedServer ?? null, token: resolvedToken }));
 });
 
 // ── In-app notifications ──────────────────────────────────────────────────────

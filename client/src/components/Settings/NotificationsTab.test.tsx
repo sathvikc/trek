@@ -347,6 +347,99 @@ describe('NotificationsTab', () => {
     });
   });
 
+  it('FE-COMP-NOTIFICATIONS-ntfy-001: ntfy topic input renders when ntfy channel is available', async () => {
+    server.use(
+      http.get('/api/notifications/preferences', () =>
+        HttpResponse.json({
+          preferences: { trip_invite: { inapp: true, ntfy: false } },
+          available_channels: { email: false, webhook: false, inapp: true, ntfy: true },
+          event_types: ['trip_invite'],
+          implemented_combos: { trip_invite: ['inapp', 'ntfy'] },
+        }),
+      ),
+    );
+
+    render(<NotificationsTab />);
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
+
+    // Ntfy topic input should be present (placeholder text from i18n key or EN default)
+    const inputs = await screen.findAllByRole('textbox');
+    expect(inputs.length).toBeGreaterThan(0);
+  });
+
+  it('FE-COMP-NOTIFICATIONS-ntfy-002: ntfy test button disabled when no topic entered', async () => {
+    server.use(
+      http.get('/api/notifications/preferences', () =>
+        HttpResponse.json({
+          preferences: { trip_invite: { inapp: true, ntfy: false } },
+          available_channels: { email: false, webhook: false, inapp: true, ntfy: true },
+          event_types: ['trip_invite'],
+          implemented_combos: { trip_invite: ['inapp', 'ntfy'] },
+        }),
+      ),
+      http.get('/api/settings', () => HttpResponse.json({ settings: { ntfy_topic: '' } })),
+    );
+
+    render(<NotificationsTab />);
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
+
+    // Test button should be disabled when topic is empty
+    const allButtons = await screen.findAllByRole('button');
+    const testBtn = allButtons.find(b => /test/i.test(b.textContent || ''));
+    expect(testBtn).toBeDefined();
+    expect(testBtn).toBeDisabled();
+  });
+
+  it('FE-COMP-NOTIFICATIONS-ntfy-003: entering topic and clicking Test calls test-ntfy API', async () => {
+    const user = userEvent.setup();
+    let ntfyCalled = false;
+    server.use(
+      http.get('/api/notifications/preferences', () =>
+        HttpResponse.json({
+          preferences: { trip_invite: { inapp: true, ntfy: false } },
+          available_channels: { email: false, webhook: false, inapp: true, ntfy: true },
+          event_types: ['trip_invite'],
+          implemented_combos: { trip_invite: ['inapp', 'ntfy'] },
+        }),
+      ),
+      http.post('/api/notifications/test-ntfy', () => {
+        ntfyCalled = true;
+        return HttpResponse.json({ success: true });
+      }),
+    );
+
+    render(
+      <>
+        <NotificationsTab />
+        <ToastContainer />
+      </>,
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
+
+    // Find the topic input (first textbox in the ntfy block) and type a topic
+    const inputs = await screen.findAllByRole('textbox');
+    await user.type(inputs[0], 'my-test-topic');
+
+    // Test button should now be enabled
+    const allButtons = screen.getAllByRole('button');
+    const testBtn = allButtons.find(b => /test/i.test(b.textContent || ''));
+    expect(testBtn).toBeDefined();
+    expect(testBtn).not.toBeDisabled();
+
+    await user.click(testBtn!);
+
+    await waitFor(() => {
+      expect(ntfyCalled).toBe(true);
+    });
+  });
+
   it('FE-COMP-NOTIFICATIONS-014: failed test webhook shows error toast with message', async () => {
     const user = userEvent.setup();
     server.use(

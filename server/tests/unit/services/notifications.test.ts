@@ -24,7 +24,7 @@ vi.mock('../../../src/utils/ssrfGuard', () => ({
   createPinnedDispatcher: vi.fn(() => ({})),
 }));
 
-import { getEventText, buildEmailHtml, buildWebhookBody, sendWebhook } from '../../../src/services/notifications';
+import { getEventText, buildEmailHtml, buildWebhookBody, sendWebhook, sendNtfy, resolveNtfyUrl, type NtfyConfig } from '../../../src/services/notifications';
 import { checkSsrf } from '../../../src/utils/ssrfGuard';
 import { logError } from '../../../src/services/auditLog';
 
@@ -319,3 +319,140 @@ describe('sendWebhook SSRF protection (SEC-017)', () => {
 });
 
 afterAll(() => vi.unstubAllGlobals());
+
+// ── resolveNtfyUrl ────────────────────────────────────────────────────────────
+
+describe('resolveNtfyUrl', () => {
+  const adminCfg: NtfyConfig = { server: 'https://ntfy.sh', topic: 'admin-topic', token: null };
+
+  it('uses admin server + admin topic when no user config', () => {
+    expect(resolveNtfyUrl(adminCfg, null)).toBe('https://ntfy.sh/admin-topic');
+  });
+
+  it('uses user topic over admin topic', () => {
+    const user: NtfyConfig = { server: null, topic: 'my-topic', token: null };
+    expect(resolveNtfyUrl(adminCfg, user)).toBe('https://ntfy.sh/my-topic');
+  });
+
+  it('uses user server override', () => {
+    const user: NtfyConfig = { server: 'https://ntfy.example.com', topic: 'my-topic', token: null };
+    expect(resolveNtfyUrl(adminCfg, user)).toBe('https://ntfy.example.com/my-topic');
+  });
+
+  it('strips trailing slash from server', () => {
+    const admin: NtfyConfig = { server: 'https://ntfy.sh/', topic: 'alerts', token: null };
+    expect(resolveNtfyUrl(admin, null)).toBe('https://ntfy.sh/alerts');
+  });
+
+  it('returns null when no topic in admin or user config', () => {
+    const noTopic: NtfyConfig = { server: 'https://ntfy.sh', topic: null, token: null };
+    expect(resolveNtfyUrl(noTopic, null)).toBeNull();
+  });
+
+  it('falls back to https://ntfy.sh when no server configured', () => {
+    const noServer: NtfyConfig = { server: null, topic: 'my-topic', token: null };
+    expect(resolveNtfyUrl(noServer, null)).toBe('https://ntfy.sh/my-topic');
+  });
+});
+
+// ── sendNtfy ─────────────────────────────────────────────────────────────────
+
+describe('sendNtfy', () => {
+  const ntfyUrl = 'https://ntfy.sh/trek-test';
+  const payload = { event: 'trip_invite', title: 'Test Title', body: 'Test body' };
+
+  beforeEach(() => {
+    vi.mocked(logError).mockClear();
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockClear();
+    vi.mocked(checkSsrf).mockResolvedValue({ allowed: true, isPrivate: false, resolvedIp: '1.2.3.4' });
+  });
+
+  it('NTFY-001 — sends POST to topic URL with plain text body and metadata in headers', async () => {
+    const mockFetch = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    mockFetch.mockResolvedValueOnce({ ok: true, text: async () => '' } as never);
+
+    const result = await sendNtfy(ntfyUrl, null, payload);
+    expect(result).toBe(true);
+    expect(mockFetch).toHaveBeenCalledOnce();
+
+    const [calledUrl, calledOpts] = mockFetch.mock.calls[0];
+    expect(calledUrl).toBe(ntfyUrl);
+    // Body should be plain text, not JSON
+    expect(calledOpts.body).toBe('Test body');
+    // Title, Priority, Tags go in headers
+    expect(calledOpts.headers['Title']).toBe('Test Title');
+    expect(calledOpts.headers['Priority']).toBe('4'); // trip_invite maps to priority 4
+    expect(calledOpts.headers['Tags']).toContain('loudspeaker');
+  });
+
+  it('NTFY-002 — attaches Bearer token when token provided', async () => {
+    const mockFetch = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    mockFetch.mockResolvedValueOnce({ ok: true, text: async () => '' } as never);
+
+    await sendNtfy(ntfyUrl, 'my-secret-token', payload);
+
+    const [, calledOpts] = mockFetch.mock.calls[0];
+    expect(calledOpts.headers['Authorization']).toBe('Bearer my-secret-token');
+  });
+
+  it('NTFY-003 — no Authorization header when token is null', async () => {
+    const mockFetch = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    mockFetch.mockResolvedValueOnce({ ok: true, text: async () => '' } as never);
+
+    await sendNtfy(ntfyUrl, null, payload);
+
+    const [, calledOpts] = mockFetch.mock.calls[0];
+    expect(calledOpts.headers['Authorization']).toBeUndefined();
+  });
+
+  it('NTFY-004 — includes Click header when link is provided', async () => {
+    const mockFetch = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    mockFetch.mockResolvedValueOnce({ ok: true, text: async () => '' } as never);
+
+    await sendNtfy(ntfyUrl, null, { ...payload, link: 'https://trek.example.com/trips/5' });
+
+    const [, calledOpts] = mockFetch.mock.calls[0];
+    expect(calledOpts.headers['Click']).toBe('https://trek.example.com/trips/5');
+  });
+
+  it('NTFY-005 — SSRF guard blocks private URL and returns false', async () => {
+    vi.mocked(checkSsrf).mockResolvedValueOnce({
+      allowed: false, isPrivate: true, resolvedIp: '192.168.1.1',
+      error: 'Requests to private/internal network addresses are not allowed',
+    });
+
+    const result = await sendNtfy('http://192.168.1.1/ntfy', null, payload);
+    expect(result).toBe(false);
+    expect(vi.mocked(logError)).toHaveBeenCalledWith(expect.stringContaining('SSRF'));
+    expect(globalThis.fetch as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+  });
+
+  it('NTFY-006 — HTTP non-2xx response returns false and logs error', async () => {
+    const mockFetch = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 403, text: async () => 'Forbidden' } as never);
+
+    const result = await sendNtfy(ntfyUrl, null, payload);
+    expect(result).toBe(false);
+    expect(vi.mocked(logError)).toHaveBeenCalledWith(expect.stringContaining('403'));
+  });
+
+  it('NTFY-007 — network error returns false', async () => {
+    const mockFetch = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    mockFetch.mockRejectedValueOnce(new Error('Network failure'));
+
+    const result = await sendNtfy(ntfyUrl, null, payload);
+    expect(result).toBe(false);
+    expect(vi.mocked(logError)).toHaveBeenCalledWith(expect.stringContaining('Network failure'));
+  });
+
+  it('NTFY-008 — unknown event falls back to priority 3 and no Tags header', async () => {
+    const mockFetch = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    mockFetch.mockResolvedValueOnce({ ok: true, text: async () => '' } as never);
+
+    await sendNtfy(ntfyUrl, null, { event: 'unknown_event', title: 'T', body: 'B' });
+
+    const [, calledOpts] = mockFetch.mock.calls[0];
+    expect(calledOpts.headers['Priority']).toBe('3');
+    expect(calledOpts.headers['Tags']).toBeUndefined(); // empty tags = no header
+  });
+});

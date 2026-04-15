@@ -7,15 +7,20 @@ import {
   isSmtpConfigured,
   ADMIN_SCOPED_EVENTS,
   type NotifEventType,
+  type NotifChannel,
 } from './notificationPreferencesService';
 import {
   getEventText,
   sendEmail,
   sendWebhook,
+  sendNtfy,
   getUserEmail,
   getUserLanguage,
   getUserWebhookUrl,
   getAdminWebhookUrl,
+  getUserNtfyConfig,
+  getAdminNtfyConfig,
+  resolveNtfyUrl,
   getAppUrl,
 } from './notifications';
 import {
@@ -270,6 +275,19 @@ export async function send(payload: NotificationPayload): Promise<void> {
       }
     }
 
+    // ── Ntfy (per-user) — skip for admin-scoped events (handled globally below) ──
+    if (!ADMIN_SCOPED_EVENTS.has(event) && activeChannels.includes('ntfy') && isEnabledForEvent(recipientId, event, 'ntfy' as NotifChannel)) {
+      const userNtfyCfg = getUserNtfyConfig(recipientId);
+      const adminNtfyCfg = getAdminNtfyConfig();
+      const ntfyUrl = resolveNtfyUrl(adminNtfyCfg, userNtfyCfg);
+      if (ntfyUrl) {
+        const lang = getUserLanguage(recipientId);
+        const { title, body } = getEventText(lang, event, params);
+        const token = userNtfyCfg?.token ?? adminNtfyCfg.token;
+        promises.push(sendNtfy(ntfyUrl, token, { event, title, body, link: fullLink }));
+      }
+    }
+
     const results = await Promise.allSettled(promises);
     for (const result of results) {
       if (result.status === 'rejected') {
@@ -285,6 +303,18 @@ export async function send(payload: NotificationPayload): Promise<void> {
       const { title, body } = getEventText('en', event, params);
       await sendWebhook(adminWebhookUrl, { event, title, body, link: fullLink }).catch((err: unknown) => {
         logError(`notificationService.send admin webhook failed event=${event}: ${err instanceof Error ? err.message : err}`);
+      });
+    }
+  }
+
+  // ── Admin ntfy (scope: admin) — global, respects global pref ─────────
+  if (scope === 'admin' && getAdminGlobalPref(event, 'ntfy')) {
+    const adminNtfyCfg = getAdminNtfyConfig();
+    const adminNtfyUrl = resolveNtfyUrl(adminNtfyCfg, null);
+    if (adminNtfyUrl) {
+      const { title, body } = getEventText('en', event, params);
+      await sendNtfy(adminNtfyUrl, adminNtfyCfg.token, { event, title, body, link: fullLink }).catch((err: unknown) => {
+        logError(`notificationService.send admin ntfy failed event=${event}: ${err instanceof Error ? err.message : err}`);
       });
     }
   }

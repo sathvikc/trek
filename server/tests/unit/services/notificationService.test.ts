@@ -458,3 +458,72 @@ describe('send() — channel failure resilience', () => {
     expect(countAllNotifications()).toBe(1);
   });
 });
+
+// ── Ntfy dispatch ─────────────────────────────────────────────────────────────
+
+function setUserNtfyTopic(userId: number, topic = 'my-trek-topic'): void {
+  testDb.prepare("INSERT OR REPLACE INTO settings (user_id, key, value) VALUES (?, 'ntfy_topic', ?)").run(userId, topic);
+}
+
+function setAdminNtfyTopic(topic = 'trek-admin-alerts'): void {
+  setAppSetting(testDb, 'admin_ntfy_topic', topic);
+}
+
+describe('send() — ntfy channel dispatch', () => {
+  beforeEach(() => {
+    fetchMock.mockResolvedValue({ ok: true, text: async () => '' });
+  });
+
+  it('NTFY-SVCB-001 — ntfy fires when channel active and user has topic configured', async () => {
+    const { user } = createUser(testDb);
+    setUserNtfyTopic(user.id);
+    setNotificationChannels(testDb, 'ntfy');
+    const tripId = (testDb.prepare('INSERT INTO trips (title, user_id) VALUES (?, ?)').run('Tokyo', user.id)).lastInsertRowid as number;
+
+    await send({ event: 'trip_invite', actorId: null, scope: 'user', targetId: user.id, params: { trip: 'Tokyo', actor: 'Alice', invitee: 'Bob', tripId: String(tripId) } });
+
+    const ntfyCalls = fetchMock.mock.calls.filter(([url]: [string]) => url.includes('ntfy.sh'));
+    expect(ntfyCalls.length).toBeGreaterThan(0);
+    // Header-based API: metadata in headers, body = plain text
+    expect(ntfyCalls[0][1].headers['Priority']).toBe('4'); // trip_invite = high priority
+    expect(ntfyCalls[0][1].headers['Tags']).toContain('loudspeaker');
+  });
+
+  it('NTFY-SVCB-002 — ntfy skips when channel not in active channels', async () => {
+    const { user } = createUser(testDb);
+    setUserNtfyTopic(user.id);
+    setNotificationChannels(testDb, 'none');
+
+    fetchMock.mockClear();
+    await send({ event: 'trip_invite', actorId: null, scope: 'user', targetId: user.id, params: { trip: 'Paris', actor: 'Alice', invitee: 'Bob', tripId: '1' } });
+
+    const ntfyCalls = fetchMock.mock.calls.filter(([url]: [string]) => url.includes('ntfy.sh'));
+    expect(ntfyCalls.length).toBe(0);
+  });
+
+  it('NTFY-SVCB-003 — ntfy skips when user has no topic configured', async () => {
+    const { user } = createUser(testDb);
+    setNotificationChannels(testDb, 'ntfy');
+    // No ntfy_topic set, but no admin_ntfy_server either — resolveNtfyUrl returns null
+
+    fetchMock.mockClear();
+    await send({ event: 'trip_invite', actorId: null, scope: 'user', targetId: user.id, params: { trip: 'Rome', actor: 'Alice', invitee: 'Bob', tripId: '1' } });
+
+    const ntfyCalls = fetchMock.mock.calls.filter(([url]: [string]) => url.includes('ntfy.sh'));
+    expect(ntfyCalls.length).toBe(0);
+  });
+
+  it('NTFY-SVCB-004 — admin-scoped version_available fires admin ntfy topic', async () => {
+    createAdmin(testDb);
+    setAdminNtfyTopic();
+    setNotificationChannels(testDb, 'none');
+
+    fetchMock.mockClear();
+    await send({ event: 'version_available', actorId: null, scope: 'admin', targetId: 0, params: { version: '3.0.0' } });
+
+    const ntfyCalls = fetchMock.mock.calls.filter(([url]: [string]) => url.includes('ntfy.sh'));
+    expect(ntfyCalls.length).toBeGreaterThan(0);
+    expect(ntfyCalls[0][1].headers['Priority']).toBe('4'); // version_available = high priority
+    expect(ntfyCalls[0][1].headers['Tags']).toContain('package');
+  });
+});

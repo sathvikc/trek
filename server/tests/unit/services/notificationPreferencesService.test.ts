@@ -153,14 +153,15 @@ describe('getPreferencesMatrix', () => {
     expect(available_channels.email).toBe(false);
   });
 
-  it('NPREF-011 — implemented_combos maps version_available to [inapp, email, webhook]', () => {
+  it('NPREF-011 — implemented_combos maps version_available to [inapp, email, webhook, ntfy]', () => {
     const { user } = createAdmin(testDb);
     const { implemented_combos } = getPreferencesMatrix(user.id, 'admin', 'admin');
-    expect(implemented_combos['version_available']).toEqual(['inapp', 'email', 'webhook']);
-    // All events now support all three channels
+    expect(implemented_combos['version_available']).toEqual(['inapp', 'email', 'webhook', 'ntfy']);
+    // All events now support all four channels
     expect(implemented_combos['trip_invite']).toContain('inapp');
     expect(implemented_combos['trip_invite']).toContain('email');
     expect(implemented_combos['trip_invite']).toContain('webhook');
+    expect(implemented_combos['trip_invite']).toContain('ntfy');
   });
 });
 
