@@ -45,7 +45,12 @@ import { createTables } from '../../../src/db/schema';
 import { runMigrations } from '../../../src/db/migrations';
 import { resetTestDb } from '../../helpers/test-db';
 import { createUser, createTrip, createPlace, createCategory, createTag } from '../../helpers/factories';
-import { listPlaces, createPlace as svcCreatePlace, getPlace, updatePlace, deletePlace, importGpx, importGoogleList, searchPlaceImage } from '../../../src/services/placeService';
+import path from 'path';
+import fs from 'fs';
+import { listPlaces, createPlace as svcCreatePlace, getPlace, updatePlace, deletePlace, importGpx, importKmlPlaces, importGoogleList, searchPlaceImage } from '../../../src/services/placeService';
+
+const GPX_FIXTURE = path.join(__dirname, '../../fixtures/test.gpx');
+const KML_FIXTURE = path.join(__dirname, '../../fixtures/test.kml');
 
 beforeAll(() => {
   createTables(testDb);
@@ -266,10 +271,10 @@ describe('importGpx', () => {
       <wpt lat="48.8566" lon="2.3522"><name>Paris</name></wpt>
       <wpt lat="51.5074" lon="-0.1278"><name>London</name></wpt>
     </gpx>`);
-    const places = importGpx(String(trip.id), gpx) as any[];
-    expect(places).toHaveLength(2);
-    expect(places[0].name).toBe('Paris');
-    expect(places[1].name).toBe('London');
+    const result = importGpx(String(trip.id), gpx) as any;
+    expect(result.places).toHaveLength(2);
+    expect(result.places[0].name).toBe('Paris');
+    expect(result.places[1].name).toBe('London');
   });
 
   it('PLACE-SVC-022 — falls back to <rte> route points when no <wpt> elements exist', () => {
@@ -281,10 +286,10 @@ describe('importGpx', () => {
         <rtept lat="51.5074" lon="-0.1278"><name>End</name></rtept>
       </rte>
     </gpx>`);
-    const places = importGpx(String(trip.id), gpx) as any[];
-    expect(places).toHaveLength(2);
-    expect(places[0].name).toBe('Start');
-    expect(places[1].name).toBe('End');
+    const result = importGpx(String(trip.id), gpx) as any;
+    expect(result.places).toHaveLength(2);
+    expect(result.places[0].name).toBe('Start');
+    expect(result.places[1].name).toBe('End');
   });
 
   it('PLACE-SVC-023 — imports <trk> track as a single place with routeGeometry', () => {
@@ -299,10 +304,10 @@ describe('importGpx', () => {
         </trkseg>
       </trk>
     </gpx>`);
-    const places = importGpx(String(trip.id), gpx) as any[];
-    expect(places).toHaveLength(1);
-    expect(places[0].name).toBe('My Track');
-    const geometry = JSON.parse(places[0].route_geometry);
+    const result = importGpx(String(trip.id), gpx) as any;
+    expect(result.places).toHaveLength(1);
+    expect(result.places[0].name).toBe('My Track');
+    const geometry = JSON.parse(result.places[0].route_geometry);
     expect(Array.isArray(geometry)).toBe(true);
     expect(geometry).toHaveLength(2);
   });
@@ -320,10 +325,10 @@ describe('importGpx', () => {
         </trkseg>
       </trk>
     </gpx>`);
-    const places = importGpx(String(trip.id), gpx) as any[];
+    const result = importGpx(String(trip.id), gpx) as any;
     // 1 wpt + 1 trk
-    expect(places).toHaveLength(2);
-    const trackPlace = places.find((p: any) => p.name === 'Track') as any;
+    expect(result.places).toHaveLength(2);
+    const trackPlace = result.places.find((p: any) => p.name === 'Track') as any;
     expect(trackPlace).toBeDefined();
     const geometry = JSON.parse(trackPlace.route_geometry);
     expect(geometry).toHaveLength(2);
@@ -447,5 +452,76 @@ describe('searchPlaceImage', () => {
     expect(result.photos[0].id).toBe('photo1');
     expect(result.photos[0].url).toBe('https://img.example.com/1');
     expect(result.photos[0].photographer).toBe('Photographer');
+  });
+});
+
+// ── Import deduplication ──────────────────────────────────────────────────────
+
+describe('importGpx deduplication', () => {
+  it('PLACE-SVC-033 — skips waypoints already in trip by name', () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const buf = fs.readFileSync(GPX_FIXTURE);
+
+    // First import
+    const first = importGpx(String(trip.id), buf) as any;
+    expect(first.count).toBeGreaterThan(0);
+
+    // Second import — all names already present, nothing new created
+    const second = importGpx(String(trip.id), buf) as any;
+    expect(second.count).toBe(0);
+    expect(second.skipped).toBe(first.count);
+
+    // Total places in DB should equal first import count
+    const total = (listPlaces(String(trip.id), {}) as any[]).length;
+    expect(total).toBe(first.count);
+  });
+
+  it('PLACE-SVC-034 — imports new places while skipping existing ones', () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const buf = fs.readFileSync(GPX_FIXTURE);
+
+    const first = importGpx(String(trip.id), buf) as any;
+    // Manually add a brand-new place so total > first.count
+    createPlace(testDb, trip.id, { name: 'Unique Extra Place', lat: 99, lng: 99 });
+
+    // Re-import: the fixture places are skipped, the extra place remains untouched
+    const second = importGpx(String(trip.id), buf) as any;
+    expect(second.count).toBe(0);
+
+    const total = (listPlaces(String(trip.id), {}) as any[]).length;
+    expect(total).toBe(first.count + 1);
+  });
+});
+
+describe('importKmlPlaces deduplication', () => {
+  it('PLACE-SVC-035 — skips placemarks already in trip by name', () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    const buf = fs.readFileSync(KML_FIXTURE);
+
+    const first = importKmlPlaces(String(trip.id), buf);
+    expect(first.count).toBeGreaterThan(0);
+
+    const second = importKmlPlaces(String(trip.id), buf);
+    expect(second.count).toBe(0);
+    expect(second.summary.skippedCount).toBeGreaterThanOrEqual(first.count);
+    expect(second.summary.warnings.some((w: string) => w.includes('skipped'))).toBe(true);
+  });
+
+  it('PLACE-SVC-036 — deduplicates within the same file (intra-batch)', () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    // Craft a KML with two placemarks sharing the same name
+    const kml = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+  <Placemark><name>Dupe Place</name><Point><coordinates>2.0,48.0,0</coordinates></Point></Placemark>
+  <Placemark><name>Dupe Place</name><Point><coordinates>2.1,48.1,0</coordinates></Point></Placemark>
+</Document></kml>`);
+
+    const result = importKmlPlaces(String(trip.id), kml);
+    expect(result.count).toBe(1);
+    expect(result.summary.skippedCount).toBe(1);
   });
 });

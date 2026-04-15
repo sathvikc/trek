@@ -433,29 +433,29 @@ describe('Mobile day-picker (portal)', () => {
 // ── GPX import ────────────────────────────────────────────────────────────────
 
 describe('GPX import', () => {
-  it('FE-PLANNER-SIDEBAR-038: GPX import button triggers file input click', async () => {
+  it('FE-PLANNER-SIDEBAR-038: "Import file" button opens the file import modal', async () => {
     const user = userEvent.setup();
     render(<PlacesSidebar {...defaultProps} />);
-    const fileInput = document.querySelector('input[type="file"][accept=".gpx"]') as HTMLInputElement;
-    expect(fileInput).toBeTruthy();
-    const clickSpy = vi.spyOn(fileInput, 'click');
-    await user.click(screen.getByText(/GPX/i));
-    expect(clickSpy).toHaveBeenCalled();
+    await user.click(screen.getByText(/Import file/i));
+    expect(await screen.findByText(/\.gpx.*\.kml.*\.kmz/i)).toBeInTheDocument();
   });
 
-  it('FE-PLANNER-SIDEBAR-039: successful GPX import shows success toast', async () => {
-    // FormData POST hangs on CI — mock at the API boundary instead of MSW.
+  it('FE-PLANNER-SIDEBAR-039: successful GPX import via modal shows success toast', async () => {
     const importSpy = vi.spyOn(placesApi, 'importGpx').mockResolvedValueOnce({ count: 2, places: [{ id: 10 }, { id: 11 }] });
     const loadTrip = vi.fn().mockResolvedValue(undefined);
     seedStore(useTripStore, { loadTrip });
     const addToast = vi.fn();
     (window as any).__addToast = addToast;
+    const user = userEvent.setup();
     render(<PlacesSidebar {...defaultProps} pushUndo={vi.fn()} />);
-    const fileInput = document.querySelector('input[type="file"][accept=".gpx"]') as HTMLInputElement;
+    await user.click(screen.getByText(/Import file/i));
+    const fileInput = document.querySelector('input[type="file"][accept=".gpx,.kml,.kmz"]') as HTMLInputElement;
+    expect(fileInput).toBeTruthy();
     const file = new File(['track data'], 'route.gpx', { type: 'application/gpx+xml' });
     await act(async () => {
       fireEvent.change(fileInput, { target: { files: [file] } });
     });
+    await user.click(screen.getByRole('button', { name: /^import$/i }));
     await waitFor(() => {
       expect(addToast).toHaveBeenCalledWith(
         expect.stringContaining('2'),

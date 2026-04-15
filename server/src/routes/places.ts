@@ -66,13 +66,13 @@ router.post('/import/gpx', authenticate, requireTripAccess, uploadMulter.single(
   const file = req.file as Express.Multer.File | undefined;
   if (!file) return res.status(400).json({ error: 'No file uploaded' });
 
-  const created = importGpx(tripId, file.buffer);
-  if (!created) {
+  const result = importGpx(tripId, file.buffer);
+  if (!result) {
     return res.status(400).json({ error: 'No waypoints found in GPX file' });
   }
 
-  res.status(201).json({ places: created, count: created.length });
-  for (const place of created) {
+  res.status(201).json({ places: result.places, count: result.count, skipped: result.skipped });
+  for (const place of result.places) {
     broadcast(tripId, 'place:created', { place }, req.headers['x-socket-id'] as string);
   }
 });
@@ -89,7 +89,7 @@ router.post('/import/map', authenticate, requireTripAccess, uploadMulter.single(
 
   try {
     const result = await importMapFile(tripId, file.buffer, file.originalname);
-    if (result.count === 0) {
+    if (result.summary?.totalPlacemarks === 0) {
       return res.status(400).json({ error: 'No valid Placemarks found in map file', summary: result.summary });
     }
 
@@ -120,7 +120,7 @@ router.post('/import/google-list', authenticate, requireTripAccess, async (req: 
       return res.status(result.status).json({ error: result.error });
     }
 
-    res.status(201).json({ places: result.places, count: result.places.length, listName: result.listName });
+    res.status(201).json({ places: result.places, count: result.places.length, listName: result.listName, skipped: result.skipped });
     for (const place of result.places) {
       broadcast(tripId, 'place:created', { place }, req.headers['x-socket-id'] as string);
     }
@@ -150,7 +150,7 @@ router.post('/import/naver-list', authenticate, requireTripAccess, async (req: R
       return res.status(result.status).json({ error: result.error });
     }
 
-    res.status(201).json({ places: result.places, count: result.places.length, listName: result.listName });
+    res.status(201).json({ places: result.places, count: result.places.length, listName: result.listName, skipped: result.skipped });
     for (const place of result.places) {
       broadcast(tripId, 'place:created', { place }, req.headers['x-socket-id'] as string);
     }

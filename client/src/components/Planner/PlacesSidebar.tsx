@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom'
-import { useState, useRef, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Search, Plus, X, CalendarDays, Pencil, Trash2, ExternalLink, Navigation, Upload, ChevronDown, Check, MapPin, Eye } from 'lucide-react'
 import PlaceAvatar from '../shared/PlaceAvatar'
 import { getCategoryIcon } from '../shared/categoryIcons'
@@ -12,14 +12,7 @@ import { useTripStore } from '../../store/tripStore'
 import { useCanDo } from '../../store/permissionsStore'
 import { useAddonStore } from '../../store/addonStore'
 import type { Place, Category, Day, AssignmentsMap } from '../../types'
-
-interface PlacesImportSummary {
-  totalPlacemarks: number
-  createdCount: number
-  skippedCount: number
-  warnings: string[]
-  errors: string[]
-}
+import FileImportModal from './FileImportModal'
 
 interface PlacesSidebarProps {
   tripId: number
@@ -47,35 +40,43 @@ const PlacesSidebar = React.memo(function PlacesSidebar({
   const { t } = useTranslation()
   const toast = useToast()
   const ctxMenu = useContextMenu()
-  const gpxInputRef = useRef<HTMLInputElement>(null)
-  const keyholeMarkupFileInputRef = useRef<HTMLInputElement>(null)
   const trip = useTripStore((s) => s.trip)
   const loadTrip = useTripStore((s) => s.loadTrip)
   const can = useCanDo()
   const canEditPlaces = can('place_edit', trip)
   const isNaverListImportEnabled = useAddonStore((s) => s.isEnabled('naver_list_import'))
-  const importFileLimitBytes = 10 * 1024 * 1024
 
-  const handleGpxImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
-    try {
-      const result = await placesApi.importGpx(tripId, file)
-      await loadTrip(tripId)
-      toast.success(t('places.gpxImported', { count: result.count }))
-      if (result.places?.length > 0) {
-        const importedIds: number[] = result.places.map((p: { id: number }) => p.id)
-        pushUndo?.(t('undo.importGpx'), async () => {
-          for (const id of importedIds) {
-            try { await placesApi.delete(tripId, id) } catch {}
-          }
-          await loadTrip(tripId)
-        })
-      }
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || t('places.gpxError'))
-    }
+  const [fileImportOpen, setFileImportOpen] = useState(false)
+  const [sidebarDropFile, setSidebarDropFile] = useState<File | null>(null)
+  const [sidebarDragOver, setSidebarDragOver] = useState(false)
+  const sidebarDragCounter = useRef(0)
+
+  const handleSidebarDragEnter = (e: React.DragEvent) => {
+    if (!canEditPlaces) return
+    e.preventDefault()
+    sidebarDragCounter.current++
+    setSidebarDragOver(true)
+  }
+
+  const handleSidebarDragOver = (e: React.DragEvent) => {
+    if (!canEditPlaces) return
+    e.preventDefault()
+  }
+
+  const handleSidebarDragLeave = () => {
+    sidebarDragCounter.current--
+    if (sidebarDragCounter.current === 0) setSidebarDragOver(false)
+  }
+
+  const handleSidebarDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    sidebarDragCounter.current = 0
+    setSidebarDragOver(false)
+    if (!canEditPlaces) return
+    const f = e.dataTransfer.files[0]
+    if (!f) return
+    setSidebarDropFile(f)
+    setFileImportOpen(true)
   }
 
   const [listImportOpen, setListImportOpen] = useState(false)
@@ -84,68 +85,6 @@ const PlacesSidebar = React.memo(function PlacesSidebar({
   const [listImportProvider, setListImportProvider] = useState<'google' | 'naver'>('google')
   const availableListImportProviders: Array<'google' | 'naver'> = isNaverListImportEnabled ? ['google', 'naver'] : ['google']
   const hasMultipleListImportProviders = availableListImportProviders.length > 1
-  const [keyholeMarkupFileOpen, setKeyholeMarkupFileOpen] = useState(false)
-  const [keyholeMarkupFileLoading, setKeyholeMarkupFileLoading] = useState(false)
-  const [keyholeMarkupFile, setKeyholeMarkupFileFile] = useState<File | null>(null)
-  const [keyholeMarkupFileSummary, setKeyholeMarkupFileSummary] = useState<PlacesImportSummary | null>(null)
-  const [keyholeMarkupFileError, setKeyholeMarkupFileError] = useState('')
-
-  const resetKeyholeMarkupFileDialog = () => {
-    setKeyholeMarkupFileFile(null)
-    setKeyholeMarkupFileSummary(null)
-    setKeyholeMarkupFileError('')
-    setKeyholeMarkupFileLoading(false)
-  }
-
-  const handleKeyholeMarkupFileImport = async () => {
-    if (!keyholeMarkupFile) return
-
-    const ext = keyholeMarkupFile.name.toLowerCase().split('.').pop()
-    if (ext !== 'kml' && ext !== 'kmz') {
-      setKeyholeMarkupFileError(t('places.kmlKmzInvalidType'))
-      return
-    }
-    if (keyholeMarkupFile.size > importFileLimitBytes) {
-      setKeyholeMarkupFileError(t('places.kmlKmzTooLarge', { maxMb: 10 }))
-      return
-    }
-
-    setKeyholeMarkupFileLoading(true)
-    setKeyholeMarkupFileError('')
-    setKeyholeMarkupFileSummary(null)
-
-    try {
-      const result = await placesApi.importMapFile(tripId, keyholeMarkupFile)
-
-      await loadTrip(tripId)
-      setKeyholeMarkupFileSummary(result.summary || null)
-      toast.success(t('places.kmlKmzImported', { count: result.count }))
-
-      if (result.summary?.errors?.length > 0) {
-        setKeyholeMarkupFileError(result.summary.errors.join('\n'))
-      }
-
-      if (result.places?.length > 0) {
-        const importedIds: number[] = result.places.map((p: { id: number }) => p.id)
-        pushUndo?.(t('undo.importKeyholeMarkup'), async () => {
-          for (const id of importedIds) {
-            try { await placesApi.delete(tripId, id) } catch {}
-          }
-          await loadTrip(tripId)
-        })
-      }
-    } catch (err: any) {
-      const responseSummary = err?.response?.data?.summary as PlacesImportSummary | undefined
-      if (responseSummary) {
-        setKeyholeMarkupFileSummary(responseSummary)
-      }
-      const message = err?.response?.data?.error || t('places.kmlKmzImportError')
-      setKeyholeMarkupFileError(message)
-      toast.error(message)
-    } finally {
-      setKeyholeMarkupFileLoading(false)
-    }
-  }
 
   useEffect(() => {
     if (!isNaverListImportEnabled && listImportProvider === 'naver') {
@@ -162,7 +101,11 @@ const PlacesSidebar = React.memo(function PlacesSidebar({
         ? await placesApi.importGoogleList(tripId, listImportUrl.trim())
         : await placesApi.importNaverList(tripId, listImportUrl.trim())
       await loadTrip(tripId)
-      toast.success(t(provider === 'google' ? 'places.googleListImported' : 'places.naverListImported', { count: result.count, list: result.listName }))
+      if (result.count === 0 && result.skipped > 0) {
+        toast.warning(t('places.importAllSkipped'))
+      } else {
+        toast.success(t(provider === 'google' ? 'places.googleListImported' : 'places.naverListImported', { count: result.count, list: result.listName }))
+      }
       setListImportOpen(false)
       setListImportUrl('')
       if (result.places?.length > 0) {
@@ -214,7 +157,26 @@ const PlacesSidebar = React.memo(function PlacesSidebar({
     selectedDayId && (assignments[String(selectedDayId)] || []).some(a => a.place?.id === placeId)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif" }}>
+    <div
+      onDragEnter={handleSidebarDragEnter}
+      onDragOver={handleSidebarDragOver}
+      onDragLeave={handleSidebarDragLeave}
+      onDrop={handleSidebarDrop}
+      style={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif", position: 'relative' }}
+    >
+      {sidebarDragOver && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 10,
+          background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+          border: '2px dashed var(--accent)',
+          borderRadius: 4,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          gap: 10, pointerEvents: 'none',
+        }}>
+          <Upload size={28} strokeWidth={1.5} color="var(--accent)" />
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>{t('places.sidebarDrop')}</span>
+        </div>
+      )}
       {/* Kopfbereich */}
       <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--border-faint)', flexShrink: 0 }}>
         {canEditPlaces && <button
@@ -229,10 +191,9 @@ const PlacesSidebar = React.memo(function PlacesSidebar({
           <Plus size={14} strokeWidth={2} /> {t('places.addPlace')}
         </button>}
         {canEditPlaces && <>
-        <input ref={gpxInputRef} type="file" accept=".gpx" style={{ display: 'none' }} onChange={handleGpxImport} />
         <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
           <button
-            onClick={() => gpxInputRef.current?.click()}
+            onClick={() => setFileImportOpen(true)}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
               flex: 1, padding: '5px 12px', borderRadius: 8,
@@ -241,19 +202,7 @@ const PlacesSidebar = React.memo(function PlacesSidebar({
               cursor: 'pointer', fontFamily: 'inherit',
             }}
           >
-            <Upload size={11} strokeWidth={2} /> {t('places.importGpx')}
-          </button>
-          <button
-            onClick={() => { resetKeyholeMarkupFileDialog(); setKeyholeMarkupFileOpen(true) }}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-              flex: 1, padding: '5px 12px', borderRadius: 8,
-              border: '1px dashed var(--border-primary)', background: 'none',
-              color: 'var(--text-faint)', fontSize: 11, fontWeight: 500,
-              cursor: 'pointer', fontFamily: 'inherit',
-            }}
-          >
-            <Upload size={11} strokeWidth={2} /> {t('places.importKeyholeMarkup')}
+            <Upload size={11} strokeWidth={2} /> {t('places.importFile')}
           </button>
           <button
             onClick={() => setListImportOpen(true)}
@@ -619,122 +568,13 @@ const PlacesSidebar = React.memo(function PlacesSidebar({
         </div>,
         document.body
       )}
-      {keyholeMarkupFileOpen && ReactDOM.createPortal(
-        <div
-          onClick={() => { setKeyholeMarkupFileOpen(false); resetKeyholeMarkupFileDialog() }}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{ background: 'var(--bg-card)', borderRadius: 16, width: '100%', maxWidth: 520, padding: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}
-          >
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
-              {t('places.importKeyholeMarkup')}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-faint)', marginBottom: 14, lineHeight: 1.45 }}>
-              {t('places.kmlKmzHint')}
-            </div>
-
-            <input
-              ref={keyholeMarkupFileInputRef}
-              type="file"
-              accept=".kml,.kmz"
-              style={{ display: 'none' }}
-              onChange={e => {
-                const file = e.target.files?.[0] || null
-                setKeyholeMarkupFileFile(file)
-                setKeyholeMarkupFileSummary(null)
-                setKeyholeMarkupFileError('')
-              }}
-            />
-
-            <button
-              onClick={() => keyholeMarkupFileInputRef.current?.click()}
-              style={{
-                width: '100%',
-                height: 44,
-                borderRadius: 12,
-                border: '1px dashed var(--border-primary)',
-                background: 'transparent',
-                color: 'var(--text-primary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: 'pointer',
-                marginBottom: 12,
-                fontFamily: 'inherit',
-              }}
-            >
-              <Upload size={14} strokeWidth={2} />
-              {keyholeMarkupFile ? t('places.kmlKmzSelectedFile', { name: keyholeMarkupFile.name }) : t('places.kmlKmzSelectFile')}
-            </button>
-
-            {keyholeMarkupFileSummary && (
-              <div style={{
-                border: '1px solid var(--border-primary)', borderRadius: 10,
-                background: 'var(--bg-tertiary)', padding: 10, marginBottom: 10,
-              }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  {t('places.kmlKmzSummaryValues', {
-                    total: keyholeMarkupFileSummary.totalPlacemarks,
-                    created: keyholeMarkupFileSummary.createdCount,
-                    skipped: keyholeMarkupFileSummary.skippedCount,
-                  })}
-                </div>
-                {keyholeMarkupFileSummary.warnings?.length > 0 && (
-                  <div style={{ marginTop: 8, fontSize: 12, color: '#b45309', whiteSpace: 'pre-wrap' }}>
-                    {keyholeMarkupFileSummary.warnings.join('\n')}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {keyholeMarkupFileError && (
-              <div style={{
-                border: '1px solid rgba(239,68,68,0.35)', borderRadius: 10,
-                background: 'rgba(239,68,68,0.08)', padding: '8px 10px',
-                fontSize: 12, color: '#b91c1c', whiteSpace: 'pre-wrap', marginBottom: 10,
-              }}>
-                {keyholeMarkupFileError}
-              </div>
-            )}
-
-            <div style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 12 }}>
-              {t('places.kmlKmzSizeHint', { maxMb: 10 })}
-            </div>
-
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => { setKeyholeMarkupFileOpen(false); resetKeyholeMarkupFileDialog() }}
-                style={{
-                  padding: '8px 16px', borderRadius: 10, border: '1px solid var(--border-primary)',
-                  background: 'none', color: 'var(--text-primary)', fontSize: 13, fontWeight: 500,
-                  cursor: 'pointer', fontFamily: 'inherit',
-                }}
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                onClick={handleKeyholeMarkupFileImport}
-                disabled={!keyholeMarkupFile || keyholeMarkupFileLoading}
-                style={{
-                  padding: '8px 16px', borderRadius: 10, border: 'none',
-                  background: !keyholeMarkupFile || keyholeMarkupFileLoading ? 'var(--bg-tertiary)' : 'var(--accent)',
-                  color: !keyholeMarkupFile || keyholeMarkupFileLoading ? 'var(--text-faint)' : 'var(--accent-text)',
-                  fontSize: 13, fontWeight: 500, cursor: !keyholeMarkupFile || keyholeMarkupFileLoading ? 'default' : 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                {keyholeMarkupFileLoading ? t('common.loading') : t('common.import')}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      <FileImportModal
+        isOpen={fileImportOpen}
+        onClose={() => { setFileImportOpen(false); setSidebarDropFile(null) }}
+        tripId={tripId}
+        pushUndo={pushUndo}
+        initialFile={sidebarDropFile}
+      />
       <ContextMenu menu={ctxMenu.menu} onClose={ctxMenu.close} />
     </div>
   )

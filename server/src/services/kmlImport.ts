@@ -40,6 +40,13 @@ function asArray<T>(value: T | T[] | null | undefined): T[] {
 
 function asTrimmedString(value: unknown): string | null {
   if (value == null) return null;
+  // Parsed objects (mixed-content XML parsed without stopNodes) must not
+  // produce "[object Object]" — extract #text if present, else return null.
+  if (typeof value === 'object') {
+    const candidate = (value as Record<string, unknown>)['#text'];
+    if (typeof candidate === 'string') return candidate.trim() || null;
+    return null;
+  }
   const text = String(value).trim();
   return text.length > 0 ? text : null;
 }
@@ -73,7 +80,12 @@ export function sanitizeKmlDescription(value: unknown): string | null {
   const raw = asTrimmedString(value);
   if (!raw) return null;
 
-  const withLineBreaks = raw.replace(/<br\s*\/?>/gi, '\n');
+  // Unwrap CDATA sections — present when fast-xml-parser returns raw node text
+  // via stopNodes. Must happen before tag-stripping so the CDATA markers are
+  // not mis-parsed by the <[^>]+> regex.
+  const withoutCdata = raw.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1');
+
+  const withLineBreaks = withoutCdata.replace(/<br\s*\/?>/gi, '\n');
   const stripped = withLineBreaks.replace(/<[^>]+>/g, '');
   const decoded = decodeHtmlEntities(stripped)
     .replace(/\r\n/g, '\n')

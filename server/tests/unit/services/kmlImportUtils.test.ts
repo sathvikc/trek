@@ -16,6 +16,11 @@ describe('kmlImportUtils', () => {
     expect(output).toBe('Line 1\nLine 2 & more');
   });
 
+  it('unwraps CDATA sections before stripping tags', () => {
+    const input = '<![CDATA[Great spot<br>for photos <b>and</b> skyline.]]>';
+    expect(sanitizeKmlDescription(input)).toBe('Great spot\nfor photos and skyline.');
+  });
+
   it('parses KML coordinate order lng,lat,alt', () => {
     const parsed = parseKmlPointCoordinates('13.4050,52.5200,15');
     expect(parsed).toEqual({ lat: 52.52, lng: 13.405 });
@@ -63,6 +68,18 @@ describe('kmlImportUtils', () => {
   it('decodes non-BMP hex HTML entities (emoji)', () => {
     // &#x1F600; = U+1F600 = 😀
     expect(sanitizeKmlDescription('&#x1F600;')).toBe('😀');
+  });
+
+  it('does not produce [object Object] when description is a parsed object with #text', () => {
+    // fast-xml-parser can return an object for mixed-content nodes when stopNodes
+    // is not configured; the fallback in asTrimmedString must extract #text.
+    const result = sanitizeKmlDescription({ '#text': 'Hello <b>world</b>' } as any);
+    expect(result).not.toBe('[object Object]');
+    expect(result).toBe('Hello world');
+  });
+
+  it('returns null when description object has no #text', () => {
+    expect(sanitizeKmlDescription({ i: 'bold' } as any)).toBeNull();
   });
 
   it('returns warning for non-UTF8 payload', () => {
