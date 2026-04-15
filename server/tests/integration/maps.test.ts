@@ -383,4 +383,16 @@ describe('Maps autocomplete', () => {
 
     expect(res.status).toBe(500);
   });
+
+  it('MAPS-017 — POST /maps/autocomplete with input > 200 chars returns 400', async () => {
+    const { user } = createUser(testDb);
+
+    const res = await request(app)
+      .post('/api/maps/autocomplete')
+      .set('Cookie', authCookie(user.id))
+      .send({ input: 'a'.repeat(201) });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/too long/i);
+  });
 });

@@ -954,4 +954,21 @@ describe('mapsApi', () => {
 
     await expect(mapsApi.autocomplete('test')).rejects.toThrow();
   });
+
+  it('FE-MAPS-004: mapsApi.autocomplete rejects when AbortSignal is aborted', async () => {
+    const controller = new AbortController();
+
+    server.use(
+      http.post('/api/maps/autocomplete', async () => {
+        // Never resolves — request will be aborted
+        await new Promise(() => {});
+        return HttpResponse.json({ suggestions: [] });
+      })
+    );
+
+    const promise = mapsApi.autocomplete('Paris', undefined, undefined, controller.signal);
+    controller.abort();
+
+    await expect(promise).rejects.toThrow();
+  });
 });

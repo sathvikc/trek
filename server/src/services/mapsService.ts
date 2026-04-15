@@ -406,14 +406,17 @@ async function autocompleteNominatim(
 ): Promise<{ suggestions: { placeId: string; mainText: string; secondaryText: string }[]; source: string }> {
   try {
     const places = await searchNominatim(input, lang);
-    const suggestions = places.slice(0, 5).map((p) => {
-      const parts = (p.address || '').split(',').map((s) => s.trim());
-      return {
-        placeId: p.osm_id || '',
-        mainText: p.name || parts[0] || '',
-        secondaryText: parts.slice(1).join(', '),
-      };
-    });
+    const suggestions = places
+      .filter((p) => p.osm_id && p.osm_id.includes(':') && p.osm_id.split(':')[1] !== '')
+      .slice(0, 5)
+      .map((p) => {
+        const parts = (p.address || '').split(',').map((s) => s.trim());
+        return {
+          placeId: p.osm_id,
+          mainText: p.name || parts[0] || '',
+          secondaryText: parts.slice(1).join(', '),
+        };
+      });
     return { suggestions, source: 'nominatim' };
   } catch (err) {
     console.error('Nominatim autocomplete failed:', err);
@@ -427,18 +430,21 @@ export async function getPlaceDetails(userId: number, placeId: string, lang?: st
   // OSM details: placeId is "node:123456" or "way:123456" etc.
   if (placeId.includes(':')) {
     const [osmType, osmId] = placeId.split(':');
-    const [element, nominatim] = await Promise.all([
-      fetchOverpassDetails(osmType, osmId),
-      lookupNominatim(osmType, osmId, lang),
-    ]);
+    const element = await fetchOverpassDetails(osmType, osmId);
     const details = buildOsmDetails(element?.tags || {}, osmType, osmId);
+
+    // Fetch Nominatim only when Overpass lacks coordinates or address
+    const d = details as Record<string, unknown>;
+    const needsNominatim = !d.lat || !d.lng || !d.address;
+    const nominatim = needsNominatim ? await lookupNominatim(osmType, osmId, lang) : null;
+
     return {
       place: {
         ...details,
-        name: nominatim?.name || element?.tags?.name || '',
-        address: nominatim?.address || '',
-        lat: nominatim?.lat ?? null,
-        lng: nominatim?.lng ?? null,
+        name: (d.name as string) || nominatim?.name || element?.tags?.name || '',
+        address: (d.address as string) || nominatim?.address || '',
+        lat: d.lat ?? nominatim?.lat ?? null,
+        lng: d.lng ?? nominatim?.lng ?? null,
         osm_id: placeId,
       },
     };

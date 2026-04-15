@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import Modal from '../shared/Modal'
 import CustomSelect from '../shared/CustomSelect'
 import { mapsApi } from '../../api/client'
@@ -87,7 +87,7 @@ export default function PlaceFormModal({
   const [acSuggestions, setAcSuggestions] = useState<{ placeId: string; mainText: string; secondaryText: string }[]>([])
   const [acHighlight, setAcHighlight] = useState(-1)
   const acDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [acTrigger, setAcTrigger] = useState(0)
+  const acAbortRef = useRef<AbortController | null>(null)
   const toast = useToast()
   const { t, language } = useTranslation()
   const { hasMapsKey } = useAuthStore()
@@ -151,7 +151,29 @@ export default function PlaceFormModal({
     return { low: { lat: minLat, lng: minLng }, high: { lat: maxLat, lng: maxLng } }
   }, [places])
 
-  // Debounced autocomplete
+  // Autocomplete fetch — aborts any in-flight request before starting a new one
+  const fetchSuggestions = useCallback(async (query: string) => {
+    if (query.length < 2 || isGoogleMapsUrl(query)) {
+      setAcSuggestions([])
+      setAcHighlight(-1)
+      return
+    }
+    acAbortRef.current?.abort()
+    const controller = new AbortController()
+    acAbortRef.current = controller
+    try {
+      const result = await mapsApi.autocomplete(query, language, locationBias, controller.signal)
+      setAcSuggestions(result.suggestions || [])
+      setAcHighlight(-1)
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') return
+      if (err instanceof Error && err.name === 'CanceledError') return // axios abort
+      console.error('Autocomplete failed:', err)
+      setAcSuggestions([])
+    }
+  }, [language, locationBias])
+
+  // Debounce effect — only watches mapsSearch
   useEffect(() => {
     if (acDebounceRef.current) clearTimeout(acDebounceRef.current)
 
@@ -162,21 +184,12 @@ export default function PlaceFormModal({
       return
     }
 
-    acDebounceRef.current = setTimeout(async () => {
-      try {
-        const result = await mapsApi.autocomplete(trimmed, language, locationBias)
-        setAcSuggestions(result.suggestions || [])
-        setAcHighlight(-1)
-      } catch (err) {
-        console.error('Autocomplete failed:', err)
-        setAcSuggestions([])
-      }
-    }, 300)
+    acDebounceRef.current = setTimeout(() => fetchSuggestions(trimmed), 300)
 
     return () => {
       if (acDebounceRef.current) clearTimeout(acDebounceRef.current)
     }
-  }, [mapsSearch, language, locationBias, acTrigger])
+  }, [mapsSearch, fetchSuggestions])
 
   const handleChange = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -366,7 +379,7 @@ export default function PlaceFormModal({
                 onBlur={() => setTimeout(() => setAcSuggestions([]), 150)}
                 onFocus={() => {
                   if (mapsSearch.trim().length >= 2 && acSuggestions.length === 0 && mapsResults.length === 0) {
-                    setAcTrigger(prev => prev + 1)
+                    fetchSuggestions(mapsSearch.trim())
                   }
                 }}
                 placeholder={t('places.mapsSearchPlaceholder')}
@@ -436,8 +449,8 @@ export default function PlaceFormModal({
               className="form-input"
             />
             {isSearchingMaps && (
-              <div className="absolute right-2.5 top-0 bottom-0 flex items-center">
-                <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+              <div className="absolute right-2.5 top-0 bottom-0 flex items-center" role="status" aria-label={t('places.loadingDetails')}>
+                <Loader2 className="w-4 h-4 animate-spin text-slate-400" aria-hidden="true" />
               </div>
             )}
           </div>

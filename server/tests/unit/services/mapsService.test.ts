@@ -908,6 +908,21 @@ describe('autocompletePlaces (fetch stubbed)', () => {
     expect(result.suggestions[0].mainText).toBe('Big Ben');
     expect(result.suggestions[0].secondaryText).toBe('Westminster, London, UK');
   });
+
+  it('MAPS-093: Nominatim fallback filters out results with empty osm_id', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [
+        { osm_type: 'node', osm_id: '1', lat: '48.8', lon: '2.3', display_name: 'Paris, France', name: 'Paris' },
+        { osm_type: 'node', osm_id: '',  lat: '51.5', lon: '-0.1', display_name: 'London, UK', name: 'London' },
+        { osm_type: 'way',  osm_id: '3', lat: '52.5', lon: '13.4', display_name: 'Berlin, Germany', name: 'Berlin' },
+      ],
+    }));
+    const { autocompletePlaces } = await import('../../../src/services/mapsService');
+    const result = await autocompletePlaces(999, 'test');
+    expect(result.suggestions).toHaveLength(2);
+    expect(result.suggestions.map((s) => s.placeId)).toEqual(['node:1', 'way:3']);
+  });
 });
 
 // ── getPlaceDetails (fetch stubbed) ─────────────────────────────────────────
@@ -1021,6 +1036,37 @@ describe('getPlaceDetails (fetch stubbed)', () => {
     expect(review.text).toBeNull();
     expect(review.time).toBeNull();
     expect(review.photo).toBeNull();
+  });
+
+  it('MAPS-040c: OSM path enriches name/address/coords from Nominatim (serial fetch)', async () => {
+    const fetchMock = vi.fn()
+      // First call: Overpass (returns element with tags but no coords)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ elements: [{ tags: { website: 'https://example.com' } }] }),
+      })
+      // Second call: Nominatim /lookup
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          { osm_type: 'way', osm_id: '5', lat: '48.85', lon: '2.29', display_name: 'Eiffel Tower, Paris, France', name: 'Eiffel Tower' },
+        ],
+      });
+    vi.stubGlobal('fetch', fetchMock);
+    const { getPlaceDetails } = await import('../../../src/services/mapsService');
+    const result = await getPlaceDetails(1, 'way:5');
+    const place = result.place as any;
+    expect(place.name).toBe('Eiffel Tower');
+    expect(place.address).toBe('Eiffel Tower, Paris, France');
+    expect(place.lat).toBeCloseTo(48.85);
+    expect(place.lng).toBeCloseTo(2.29);
+    expect(place.source).toBe('openstreetmap');
+    // Overpass first, then Nominatim — two total fetch calls
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const overpassUrl = fetchMock.mock.calls[0][0] as string;
+    const nominatimUrl = fetchMock.mock.calls[1][0] as string;
+    expect(overpassUrl).toContain('overpass');
+    expect(nominatimUrl).toContain('nominatim');
   });
 
   it('MAPS-041e: open_now is null when regularOpeningHours.openNow is undefined', async () => {

@@ -39,6 +39,10 @@ router.post('/autocomplete', authenticate, async (req: Request, res: Response) =
     return res.status(400).json({ error: 'Input is required' });
   }
 
+  if (input.length > 200) {
+    return res.status(400).json({ error: 'Input too long (max 200 chars)' });
+  }
+
   if (locationBias) {
     const { low, high } = locationBias;
     if (!low || !high
