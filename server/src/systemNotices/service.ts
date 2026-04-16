@@ -1,10 +1,19 @@
+import { createRequire } from 'module';
+import semver from 'semver';
 import { db } from '../db/database.js';
 import { SYSTEM_NOTICES } from './registry.js';
 import { evaluate } from './conditions.js';
 import type { SystemNoticeDTO } from './types.js';
 
 function getCurrentAppVersion(): string {
-  return process.env.APP_VERSION || '0.0.0';
+  const fromEnv = semver.valid(process.env.APP_VERSION ?? '');
+  if (fromEnv) return fromEnv;
+  try {
+    const pkg = require('../../package.json') as { version?: string };
+    return semver.valid(pkg.version ?? '') ?? '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
 }
 
 function severityWeight(s: string): number {
