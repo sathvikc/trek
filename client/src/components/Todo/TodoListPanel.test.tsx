@@ -37,9 +37,10 @@ describe('TodoListPanel', () => {
     expect(screen.getByText('Buy tickets')).toBeInTheDocument();
   });
 
-  it('FE-COMP-TODO-002: shows Add new task button', () => {
-    render(<TodoListPanel tripId={1} items={[]} />);
-    expect(screen.getByText('Add new task...')).toBeInTheDocument();
+  it('FE-COMP-TODO-002: raising addItemSignal opens the new task form', async () => {
+    const { rerender } = render(<TodoListPanel tripId={1} items={[]} addItemSignal={0} />);
+    rerender(<TodoListPanel tripId={1} items={[]} addItemSignal={1} />);
+    await screen.findByText('Create task');
   });
 
   it('FE-COMP-TODO-003: sidebar filter buttons are rendered', () => {
@@ -119,11 +120,9 @@ describe('TodoListPanel', () => {
     expect(screen.getByText(/1 \/ 2 completed/i)).toBeInTheDocument();
   });
 
-  it('FE-COMP-TODO-011: clicking Add new task opens detail form', async () => {
-    const user = userEvent.setup();
-    render(<TodoListPanel tripId={1} items={[]} />);
-    await user.click(screen.getByText('Add new task...'));
-    // The detail pane shows "Create task" button
+  it('FE-COMP-TODO-011: raising addItemSignal opens detail form with Create task button', async () => {
+    const { rerender } = render(<TodoListPanel tripId={1} items={[]} addItemSignal={0} />);
+    rerender(<TodoListPanel tripId={1} items={[]} addItemSignal={1} />);
     await screen.findByText('Create task');
   });
 
@@ -398,15 +397,12 @@ describe('TodoListPanel', () => {
         return HttpResponse.json({ item: buildTodoItem({ id: 99, name: 'Brand New Task' }) });
       }),
     );
-    render(<TodoListPanel tripId={1} items={[]} />);
-    // Open the new task pane
-    await user.click(screen.getByText('Add new task...'));
-    // Wait for "Create task" button to appear
+    const { rerender } = render(<TodoListPanel tripId={1} items={[]} addItemSignal={0} />);
+    // Raising the signal opens the new task pane (simulates the toolbar button click)
+    rerender(<TodoListPanel tripId={1} items={[]} addItemSignal={1} />);
     await screen.findByText('Create task');
-    // Type a task name in the autoFocus input (Task name placeholder)
     const nameInput = screen.getByPlaceholderText('Task name');
     await user.type(nameInput, 'Brand New Task');
-    // Click the Create task button
     await user.click(screen.getByText('Create task'));
     await waitFor(() => expect(postCalled).toBe(true));
   });
