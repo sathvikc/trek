@@ -575,16 +575,14 @@ describe('ReservationModal', () => {
     expect(screen.queryByPlaceholderText('0.00')).not.toBeInTheDocument();
   });
 
-  it('FE-PLANNER-RESMODAL-042: flight type metadata saved with airline and airports', async () => {
+  it('FE-PLANNER-RESMODAL-042: flight type metadata saved with airline and flight number', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(<ReservationModal {...defaultProps} onSave={onSave} />);
 
     await userEvent.click(screen.getByRole('button', { name: /Flight/i }));
-    await userEvent.type(screen.getByPlaceholderText(/e\.g\. Lufthansa/i), 'AF 447');
+    await userEvent.type(screen.getByPlaceholderText(/e\.g\. Lufthansa/i), 'AF 447 CDG → JFK');
     await userEvent.type(screen.getByPlaceholderText('Lufthansa'), 'Air France');
     await userEvent.type(screen.getByPlaceholderText('LH 123'), 'AF 447');
-    await userEvent.type(screen.getByPlaceholderText('FRA'), 'CDG');
-    await userEvent.type(screen.getByPlaceholderText('NRT'), 'JFK');
 
     await userEvent.click(screen.getByRole('button', { name: /^Add$/i }));
 
@@ -595,8 +593,6 @@ describe('ReservationModal', () => {
         metadata: expect.objectContaining({
           airline: 'Air France',
           flight_number: 'AF 447',
-          departure_airport: 'CDG',
-          arrival_airport: 'JFK',
         }),
       })
     );

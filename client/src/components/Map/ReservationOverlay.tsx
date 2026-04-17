@@ -25,6 +25,7 @@ const TYPE_META: Record<TransportType, { color: string; icon: typeof Plane; geod
 function useEndpointPane() {
   const map = useMap()
   useMemo(() => {
+    if (typeof map?.getPane !== 'function' || typeof map?.createPane !== 'function') return
     if (!map.getPane(ENDPOINT_PANE)) {
       const pane = map.createPane(ENDPOINT_PANE)
       pane.style.zIndex = '650'
